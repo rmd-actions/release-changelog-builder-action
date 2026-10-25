@@ -1714,7 +1714,7 @@ formatters.O = function (v) {
 
 /* module decorator */ module = __nccwpck_require__.nmd(module);
 //! moment.js
-//! version : 2.30.1
+//! version : 2.31.0
 //! authors : Tim Wood, Iskren Chernev, Moment.js contributors
 //! license : MIT
 //! momentjs.com
@@ -1831,6 +1831,7 @@ formatters.O = function (v) {
             nullInput: false,
             invalidEra: null,
             invalidMonth: null,
+            invalidOffset: null,
             invalidFormat: false,
             userInvalidated: false,
             iso: false,
@@ -1868,7 +1869,7 @@ formatters.O = function (v) {
         };
     }
 
-    function isValid(m) {
+    function isValid$2(m) {
         var flags = null,
             parsedParts = false,
             isNowValid = m._d && !isNaN(m._d.getTime());
@@ -1882,6 +1883,7 @@ formatters.O = function (v) {
                 !flags.empty &&
                 !flags.invalidEra &&
                 !flags.invalidMonth &&
+                !flags.invalidOffset &&
                 !flags.invalidWeekday &&
                 !flags.weekdayMismatch &&
                 !flags.nullInput &&
@@ -1904,7 +1906,7 @@ formatters.O = function (v) {
         return m._isValid;
     }
 
-    function createInvalid(flags) {
+    function createInvalid$1(flags) {
         var m = createUTC(NaN);
         if (flags != null) {
             extend(getParsingFlags(m), flags);
@@ -2050,7 +2052,7 @@ formatters.O = function (v) {
             hooks.deprecationHandler(name, msg);
         }
         if (!deprecations[name]) {
-            warn(msg);
+            warn(msg + '\n' + new Error().stack);
             deprecations[name] = true;
         }
     }
@@ -2063,285 +2065,6 @@ formatters.O = function (v) {
             (typeof Function !== 'undefined' && input instanceof Function) ||
             Object.prototype.toString.call(input) === '[object Function]'
         );
-    }
-
-    function set(config) {
-        var prop, i;
-        for (i in config) {
-            if (hasOwnProp(config, i)) {
-                prop = config[i];
-                if (isFunction(prop)) {
-                    this[i] = prop;
-                } else {
-                    this['_' + i] = prop;
-                }
-            }
-        }
-        this._config = config;
-        // Lenient ordinal parsing accepts just a number in addition to
-        // number + (possibly) stuff coming from _dayOfMonthOrdinalParse.
-        // TODO: Remove "ordinalParse" fallback in next major release.
-        this._dayOfMonthOrdinalParseLenient = new RegExp(
-            (this._dayOfMonthOrdinalParse.source || this._ordinalParse.source) +
-                '|' +
-                /\d{1,2}/.source
-        );
-    }
-
-    function mergeConfigs(parentConfig, childConfig) {
-        var res = extend({}, parentConfig),
-            prop;
-        for (prop in childConfig) {
-            if (hasOwnProp(childConfig, prop)) {
-                if (isObject(parentConfig[prop]) && isObject(childConfig[prop])) {
-                    res[prop] = {};
-                    extend(res[prop], parentConfig[prop]);
-                    extend(res[prop], childConfig[prop]);
-                } else if (childConfig[prop] != null) {
-                    res[prop] = childConfig[prop];
-                } else {
-                    delete res[prop];
-                }
-            }
-        }
-        for (prop in parentConfig) {
-            if (
-                hasOwnProp(parentConfig, prop) &&
-                !hasOwnProp(childConfig, prop) &&
-                isObject(parentConfig[prop])
-            ) {
-                // make sure changes to properties don't modify parent config
-                res[prop] = extend({}, res[prop]);
-            }
-        }
-        return res;
-    }
-
-    function Locale(config) {
-        if (config != null) {
-            this.set(config);
-        }
-    }
-
-    var keys;
-
-    if (Object.keys) {
-        keys = Object.keys;
-    } else {
-        keys = function (obj) {
-            var i,
-                res = [];
-            for (i in obj) {
-                if (hasOwnProp(obj, i)) {
-                    res.push(i);
-                }
-            }
-            return res;
-        };
-    }
-
-    var defaultCalendar = {
-        sameDay: '[Today at] LT',
-        nextDay: '[Tomorrow at] LT',
-        nextWeek: 'dddd [at] LT',
-        lastDay: '[Yesterday at] LT',
-        lastWeek: '[Last] dddd [at] LT',
-        sameElse: 'L',
-    };
-
-    function calendar(key, mom, now) {
-        var output = this._calendar[key] || this._calendar['sameElse'];
-        return isFunction(output) ? output.call(mom, now) : output;
-    }
-
-    function zeroFill(number, targetLength, forceSign) {
-        var absNumber = '' + Math.abs(number),
-            zerosToFill = targetLength - absNumber.length,
-            sign = number >= 0;
-        return (
-            (sign ? (forceSign ? '+' : '') : '-') +
-            Math.pow(10, Math.max(0, zerosToFill)).toString().substr(1) +
-            absNumber
-        );
-    }
-
-    var formattingTokens =
-            /(\[[^\[]*\])|(\\)?([Hh]mm(ss)?|Mo|MM?M?M?|Do|DDDo|DD?D?D?|ddd?d?|do?|w[o|w]?|W[o|W]?|Qo?|N{1,5}|YYYYYY|YYYYY|YYYY|YY|y{2,4}|yo?|gg(ggg?)?|GG(GGG?)?|e|E|a|A|hh?|HH?|kk?|mm?|ss?|S{1,9}|x|X|zz?|ZZ?|.)/g,
-        localFormattingTokens = /(\[[^\[]*\])|(\\)?(LTS|LT|LL?L?L?|l{1,4})/g,
-        formatFunctions = {},
-        formatTokenFunctions = {};
-
-    // token:    'M'
-    // padded:   ['MM', 2]
-    // ordinal:  'Mo'
-    // callback: function () { this.month() + 1 }
-    function addFormatToken(token, padded, ordinal, callback) {
-        var func = callback;
-        if (typeof callback === 'string') {
-            func = function () {
-                return this[callback]();
-            };
-        }
-        if (token) {
-            formatTokenFunctions[token] = func;
-        }
-        if (padded) {
-            formatTokenFunctions[padded[0]] = function () {
-                return zeroFill(func.apply(this, arguments), padded[1], padded[2]);
-            };
-        }
-        if (ordinal) {
-            formatTokenFunctions[ordinal] = function () {
-                return this.localeData().ordinal(
-                    func.apply(this, arguments),
-                    token
-                );
-            };
-        }
-    }
-
-    function removeFormattingTokens(input) {
-        if (input.match(/\[[\s\S]/)) {
-            return input.replace(/^\[|\]$/g, '');
-        }
-        return input.replace(/\\/g, '');
-    }
-
-    function makeFormatFunction(format) {
-        var array = format.match(formattingTokens),
-            i,
-            length;
-
-        for (i = 0, length = array.length; i < length; i++) {
-            if (formatTokenFunctions[array[i]]) {
-                array[i] = formatTokenFunctions[array[i]];
-            } else {
-                array[i] = removeFormattingTokens(array[i]);
-            }
-        }
-
-        return function (mom) {
-            var output = '',
-                i;
-            for (i = 0; i < length; i++) {
-                output += isFunction(array[i])
-                    ? array[i].call(mom, format)
-                    : array[i];
-            }
-            return output;
-        };
-    }
-
-    // format date using native date object
-    function formatMoment(m, format) {
-        if (!m.isValid()) {
-            return m.localeData().invalidDate();
-        }
-
-        format = expandFormat(format, m.localeData());
-        formatFunctions[format] =
-            formatFunctions[format] || makeFormatFunction(format);
-
-        return formatFunctions[format](m);
-    }
-
-    function expandFormat(format, locale) {
-        var i = 5;
-
-        function replaceLongDateFormatTokens(input) {
-            return locale.longDateFormat(input) || input;
-        }
-
-        localFormattingTokens.lastIndex = 0;
-        while (i >= 0 && localFormattingTokens.test(format)) {
-            format = format.replace(
-                localFormattingTokens,
-                replaceLongDateFormatTokens
-            );
-            localFormattingTokens.lastIndex = 0;
-            i -= 1;
-        }
-
-        return format;
-    }
-
-    var defaultLongDateFormat = {
-        LTS: 'h:mm:ss A',
-        LT: 'h:mm A',
-        L: 'MM/DD/YYYY',
-        LL: 'MMMM D, YYYY',
-        LLL: 'MMMM D, YYYY h:mm A',
-        LLLL: 'dddd, MMMM D, YYYY h:mm A',
-    };
-
-    function longDateFormat(key) {
-        var format = this._longDateFormat[key],
-            formatUpper = this._longDateFormat[key.toUpperCase()];
-
-        if (format || !formatUpper) {
-            return format;
-        }
-
-        this._longDateFormat[key] = formatUpper
-            .match(formattingTokens)
-            .map(function (tok) {
-                if (
-                    tok === 'MMMM' ||
-                    tok === 'MM' ||
-                    tok === 'DD' ||
-                    tok === 'dddd'
-                ) {
-                    return tok.slice(1);
-                }
-                return tok;
-            })
-            .join('');
-
-        return this._longDateFormat[key];
-    }
-
-    var defaultInvalidDate = 'Invalid date';
-
-    function invalidDate() {
-        return this._invalidDate;
-    }
-
-    var defaultOrdinal = '%d',
-        defaultDayOfMonthOrdinalParse = /\d{1,2}/;
-
-    function ordinal(number) {
-        return this._ordinal.replace('%d', number);
-    }
-
-    var defaultRelativeTime = {
-        future: 'in %s',
-        past: '%s ago',
-        s: 'a few seconds',
-        ss: '%d seconds',
-        m: 'a minute',
-        mm: '%d minutes',
-        h: 'an hour',
-        hh: '%d hours',
-        d: 'a day',
-        dd: '%d days',
-        w: 'a week',
-        ww: '%d weeks',
-        M: 'a month',
-        MM: '%d months',
-        y: 'a year',
-        yy: '%d years',
-    };
-
-    function relativeTime(number, withoutSuffix, string, isFuture) {
-        var output = this._relativeTime[string];
-        return isFunction(output)
-            ? output(number, withoutSuffix, string, isFuture)
-            : output.replace(/%d/i, number);
-    }
-
-    function pastFuture(diff, output) {
-        var format = this._relativeTime[diff > 0 ? 'future' : 'past'];
-        return isFunction(format) ? format(output) : format.replace(/%s/i, output);
     }
 
     var aliases = {
@@ -2449,6 +2172,119 @@ formatters.O = function (v) {
             return a.priority - b.priority;
         });
         return units;
+    }
+
+    function zeroFill(number, targetLength, forceSign) {
+        var absNumber = '' + Math.abs(number),
+            zerosToFill = targetLength - absNumber.length,
+            sign = number >= 0;
+        return (
+            (sign ? (forceSign ? '+' : '') : '-') +
+            Math.pow(10, Math.max(0, zerosToFill)).toString().substr(1) +
+            absNumber
+        );
+    }
+
+    var formattingTokens =
+            /(\[[^\[]*\])|(\\e)|(\\)?(eHHmm|[Hh]mm(ss)?|Mo|MM?M?M?|Do|DDDo|DD?D?D?|ddd?d?|do?|w[o|w]?|W[o|W]?|Qo?|N{1,5}|YYYYYY|YYYYY|YYYY|YY|y{2,4}|yo?|gg(ggg?)?|GG(GGG?)?|e|E|a|A|hh?|HH?|kk?|mm?|ss?|S{1,9}|x|X|zz?|ZZ?|.)/g,
+        localFormattingTokens = /(\[[^\[]*\])|(\\)?(LTS|LT|LL?L?L?|l{1,4})/g,
+        formatFunctions = {},
+        formatTokenFunctions = {};
+
+    // token:    'M'
+    // padded:   ['MM', 2]
+    // ordinal:  'Mo'
+    // callback: function () { this.month() + 1 }
+    function addFormatToken(token, padded, ordinal, callback) {
+        var func = callback;
+        if (typeof callback === 'string') {
+            func = function () {
+                return this[callback]();
+            };
+        }
+        if (token) {
+            formatTokenFunctions[token] = func;
+        }
+        if (padded) {
+            formatTokenFunctions[padded[0]] = function () {
+                return zeroFill(func.apply(this, arguments), padded[1], padded[2]);
+            };
+        }
+        if (ordinal) {
+            formatTokenFunctions[ordinal] = function () {
+                return this.localeData().ordinal(
+                    func.apply(this, arguments),
+                    token
+                );
+            };
+        }
+    }
+
+    function removeFormattingTokens(input) {
+        if (input.match(/\[[\s\S]/)) {
+            return input.replace(/^\[|\]$/g, '');
+        }
+        return input.replace(/\\/g, '');
+    }
+
+    function makeFormatFunction(format) {
+        var array = format.match(formattingTokens),
+            i,
+            length;
+
+        for (i = 0, length = array.length; i < length; i++) {
+            if (formatTokenFunctions[array[i]]) {
+                array[i] = formatTokenFunctions[array[i]];
+            } else {
+                array[i] = removeFormattingTokens(array[i]);
+            }
+        }
+
+        return function (mom) {
+            var output = '',
+                i;
+            for (i = 0; i < length; i++) {
+                output += isFunction(array[i])
+                    ? array[i].call(mom, format)
+                    : array[i];
+            }
+            return output;
+        };
+    }
+
+    // format date using native date object
+    function formatMoment(m, format) {
+        if (!m.isValid()) {
+            return m.localeData().invalidDate();
+        }
+
+        format = expandFormat(format, m.localeData());
+        var cacheKey = '$' + format;
+        if (!hasOwnProp(formatFunctions, cacheKey)) {
+            formatFunctions[cacheKey] = makeFormatFunction(format);
+        }
+
+        return formatFunctions[cacheKey](m);
+    }
+
+    function expandFormat(format, locale) {
+        var i = 5;
+
+        function replaceLongDateFormatTokens(input) {
+            return locale.longDateFormat(input) || input;
+        }
+
+        localFormattingTokens.lastIndex = 0;
+        while (i >= 0 && localFormattingTokens.test(format)) {
+            format = format.replace(
+                localFormattingTokens,
+                replaceLongDateFormatTokens
+            );
+            localFormattingTokens.lastIndex = 0;
+            i -= 1;
+        }
+
+        return format;
     }
 
     var match1 = /\d/, //       0 - 9
@@ -2640,12 +2476,12 @@ formatters.O = function (v) {
                 hooks.updateOffset(this, keepTime);
                 return this;
             } else {
-                return get(this, unit);
+                return get$2(this, unit);
             }
         };
     }
 
-    function get(mom, unit) {
+    function get$2(mom, unit) {
         if (!mom.isValid()) {
             return NaN;
         }
@@ -2745,7 +2581,7 @@ formatters.O = function (v) {
         return this;
     }
 
-    function mod(n, x) {
+    function mod$1(n, x) {
         return ((n % x) + x) % x;
     }
 
@@ -2770,7 +2606,7 @@ formatters.O = function (v) {
         if (isNaN(year) || isNaN(month)) {
             return NaN;
         }
-        var modMonth = mod(month, 12);
+        var modMonth = mod$1(month, 12);
         year += (month - modMonth) / 12;
         return modMonth === 1
             ? isLeapYear(year)
@@ -2828,7 +2664,26 @@ formatters.O = function (v) {
             'Jan_Feb_Mar_Apr_May_Jun_Jul_Aug_Sep_Oct_Nov_Dec'.split('_'),
         MONTHS_IN_FORMAT = /D[oD]?(\[[^\[\]]*\]|\s)+MMMM?/,
         defaultMonthsShortRegex = matchWord,
-        defaultMonthsRegex = matchWord;
+        defaultMonthsRegex = matchWord,
+        monthsParseProperties = [
+            'monthsParse',
+            'longMonthsParse',
+            'shortMonthsParse',
+            'monthsRegex',
+            'monthsShortRegex',
+            'monthsStrictRegex',
+            'monthsShortStrictRegex',
+        ];
+
+    function clearMonthsParseCache(locale, config) {
+        var i, prop;
+        for (i = 0; i < monthsParseProperties.length; i++) {
+            prop = monthsParseProperties[i];
+            if (!hasOwnProp(config, prop)) {
+                delete locale['_' + prop];
+            }
+        }
+    }
 
     function localeMonths(m, format) {
         if (!m) {
@@ -2858,7 +2713,7 @@ formatters.O = function (v) {
               ][m.month()];
     }
 
-    function handleStrictParse(monthName, format, strict) {
+    function handleStrictParse$1(monthName, format, strict) {
         var i,
             ii,
             mom,
@@ -2909,7 +2764,7 @@ formatters.O = function (v) {
         var i, mom, regex;
 
         if (this._monthsParseExact) {
-            return handleStrictParse.call(this, monthName, format, strict);
+            return handleStrictParse$1.call(this, monthName, format, strict);
         }
 
         if (!this._monthsParse) {
@@ -2994,7 +2849,7 @@ formatters.O = function (v) {
             hooks.updateOffset(this, true);
             return this;
         } else {
-            return get(this, 'Month');
+            return get$2(this, 'Month');
         }
     }
 
@@ -3082,158 +2937,6 @@ formatters.O = function (v) {
         );
     }
 
-    function createDate(y, m, d, h, M, s, ms) {
-        // can't just apply() to create a date:
-        // https://stackoverflow.com/q/181348
-        var date;
-        // the date constructor remaps years 0-99 to 1900-1999
-        if (y < 100 && y >= 0) {
-            // preserve leap years using a full 400 year cycle, then reset
-            date = new Date(y + 400, m, d, h, M, s, ms);
-            if (isFinite(date.getFullYear())) {
-                date.setFullYear(y);
-            }
-        } else {
-            date = new Date(y, m, d, h, M, s, ms);
-        }
-
-        return date;
-    }
-
-    function createUTCDate(y) {
-        var date, args;
-        // the Date.UTC function remaps years 0-99 to 1900-1999
-        if (y < 100 && y >= 0) {
-            args = Array.prototype.slice.call(arguments);
-            // preserve leap years using a full 400 year cycle, then reset
-            args[0] = y + 400;
-            date = new Date(Date.UTC.apply(null, args));
-            if (isFinite(date.getUTCFullYear())) {
-                date.setUTCFullYear(y);
-            }
-        } else {
-            date = new Date(Date.UTC.apply(null, arguments));
-        }
-
-        return date;
-    }
-
-    // start-of-first-week - start-of-year
-    function firstWeekOffset(year, dow, doy) {
-        var // first-week day -- which january is always in the first week (4 for iso, 1 for other)
-            fwd = 7 + dow - doy,
-            // first-week day local weekday -- which local weekday is fwd
-            fwdlw = (7 + createUTCDate(year, 0, fwd).getUTCDay() - dow) % 7;
-
-        return -fwdlw + fwd - 1;
-    }
-
-    // https://en.wikipedia.org/wiki/ISO_week_date#Calculating_a_date_given_the_year.2C_week_number_and_weekday
-    function dayOfYearFromWeeks(year, week, weekday, dow, doy) {
-        var localWeekday = (7 + weekday - dow) % 7,
-            weekOffset = firstWeekOffset(year, dow, doy),
-            dayOfYear = 1 + 7 * (week - 1) + localWeekday + weekOffset,
-            resYear,
-            resDayOfYear;
-
-        if (dayOfYear <= 0) {
-            resYear = year - 1;
-            resDayOfYear = daysInYear(resYear) + dayOfYear;
-        } else if (dayOfYear > daysInYear(year)) {
-            resYear = year + 1;
-            resDayOfYear = dayOfYear - daysInYear(year);
-        } else {
-            resYear = year;
-            resDayOfYear = dayOfYear;
-        }
-
-        return {
-            year: resYear,
-            dayOfYear: resDayOfYear,
-        };
-    }
-
-    function weekOfYear(mom, dow, doy) {
-        var weekOffset = firstWeekOffset(mom.year(), dow, doy),
-            week = Math.floor((mom.dayOfYear() - weekOffset - 1) / 7) + 1,
-            resWeek,
-            resYear;
-
-        if (week < 1) {
-            resYear = mom.year() - 1;
-            resWeek = week + weeksInYear(resYear, dow, doy);
-        } else if (week > weeksInYear(mom.year(), dow, doy)) {
-            resWeek = week - weeksInYear(mom.year(), dow, doy);
-            resYear = mom.year() + 1;
-        } else {
-            resYear = mom.year();
-            resWeek = week;
-        }
-
-        return {
-            week: resWeek,
-            year: resYear,
-        };
-    }
-
-    function weeksInYear(year, dow, doy) {
-        var weekOffset = firstWeekOffset(year, dow, doy),
-            weekOffsetNext = firstWeekOffset(year + 1, dow, doy);
-        return (daysInYear(year) - weekOffset + weekOffsetNext) / 7;
-    }
-
-    // FORMATTING
-
-    addFormatToken('w', ['ww', 2], 'wo', 'week');
-    addFormatToken('W', ['WW', 2], 'Wo', 'isoWeek');
-
-    // PARSING
-
-    addRegexToken('w', match1to2, match1to2NoLeadingZero);
-    addRegexToken('ww', match1to2, match2);
-    addRegexToken('W', match1to2, match1to2NoLeadingZero);
-    addRegexToken('WW', match1to2, match2);
-
-    addWeekParseToken(
-        ['w', 'ww', 'W', 'WW'],
-        function (input, week, config, token) {
-            week[token.substr(0, 1)] = toInt(input);
-        }
-    );
-
-    // HELPERS
-
-    // LOCALES
-
-    function localeWeek(mom) {
-        return weekOfYear(mom, this._week.dow, this._week.doy).week;
-    }
-
-    var defaultLocaleWeek = {
-        dow: 0, // Sunday is the first day of the week.
-        doy: 6, // The week that contains Jan 6th is the first week of the year.
-    };
-
-    function localeFirstDayOfWeek() {
-        return this._week.dow;
-    }
-
-    function localeFirstDayOfYear() {
-        return this._week.doy;
-    }
-
-    // MOMENTS
-
-    function getSetWeek(input) {
-        var week = this.localeData().week(this);
-        return input == null ? week : this.add((input - week) * 7, 'd');
-    }
-
-    function getSetISOWeek(input) {
-        var week = weekOfYear(this, 1, 4).week;
-        return input == null ? week : this.add((input - week) * 7, 'd');
-    }
-
     // FORMATTING
 
     addFormatToken('d', 0, 'do', 'day');
@@ -3252,12 +2955,21 @@ formatters.O = function (v) {
 
     addFormatToken('e', 0, 0, 'weekday');
     addFormatToken('E', 0, 0, 'isoWeekday');
+    addFormatToken('eHHmm', 0, 0, function () {
+        return (
+            '' +
+            this.weekday() +
+            zeroFill(this.hours(), 2) +
+            zeroFill(this.minutes(), 2)
+        );
+    });
 
     // PARSING
 
     addRegexToken('d', match1to2);
     addRegexToken('e', match1to2);
     addRegexToken('E', match1to2);
+    addRegexToken('eHHmm', match5to6);
     addRegexToken('dd', function (isStrict, locale) {
         return locale.weekdaysMinRegex(isStrict);
     });
@@ -3280,6 +2992,14 @@ formatters.O = function (v) {
 
     addWeekParseToken(['d', 'e', 'E'], function (input, week, config, token) {
         week[token] = toInt(input);
+    });
+
+    addWeekParseToken('eHHmm', function (input, week, config) {
+        var weekdayEnd = input.length - 4;
+
+        week.e = toInt(input.substr(0, weekdayEnd));
+        config._a[HOUR] = toInt(input.substr(weekdayEnd, 2));
+        config._a[MINUTE] = toInt(input.substr(weekdayEnd + 2));
     });
 
     // HELPERS
@@ -3319,7 +3039,29 @@ formatters.O = function (v) {
         defaultLocaleWeekdaysMin = 'Su_Mo_Tu_We_Th_Fr_Sa'.split('_'),
         defaultWeekdaysRegex = matchWord,
         defaultWeekdaysShortRegex = matchWord,
-        defaultWeekdaysMinRegex = matchWord;
+        defaultWeekdaysMinRegex = matchWord,
+        weekdaysParseProperties = [
+            'weekdaysParse',
+            'fullWeekdaysParse',
+            'shortWeekdaysParse',
+            'minWeekdaysParse',
+            'weekdaysRegex',
+            'weekdaysShortRegex',
+            'weekdaysMinRegex',
+            'weekdaysStrictRegex',
+            'weekdaysShortStrictRegex',
+            'weekdaysMinStrictRegex',
+        ];
+
+    function clearWeekdaysParseCache(locale, config) {
+        var i, prop;
+        for (i = 0; i < weekdaysParseProperties.length; i++) {
+            prop = weekdaysParseProperties[i];
+            if (!hasOwnProp(config, prop)) {
+                delete locale['_' + prop];
+            }
+        }
+    }
 
     function localeWeekdays(m, format) {
         var weekdays = isArray(this._weekdays)
@@ -3352,7 +3094,7 @@ formatters.O = function (v) {
               : this._weekdaysMin;
     }
 
-    function handleStrictParse$1(weekdayName, format, strict) {
+    function handleStrictParse(weekdayName, format, strict) {
         var i,
             ii,
             mom,
@@ -3429,7 +3171,7 @@ formatters.O = function (v) {
         var i, mom, regex;
 
         if (this._weekdaysParseExact) {
-            return handleStrictParse$1.call(this, weekdayName, format, strict);
+            return handleStrictParse.call(this, weekdayName, format, strict);
         }
 
         if (!this._weekdaysParse) {
@@ -3499,7 +3241,7 @@ formatters.O = function (v) {
             return input != null ? this : NaN;
         }
 
-        var day = get(this, 'Day');
+        var day = get$2(this, 'Day');
         if (input != null) {
             input = parseWeekday(input, this.localeData());
             return this.add(input - day, 'd');
@@ -3643,6 +3385,381 @@ formatters.O = function (v) {
             '^(' + minPieces.join('|') + ')',
             'i'
         );
+    }
+
+    function set(config) {
+        var prop, i;
+        clearMonthsParseCache(this, config);
+        clearWeekdaysParseCache(this, config);
+        for (i in config) {
+            if (hasOwnProp(config, i)) {
+                prop = config[i];
+                if (isFunction(prop)) {
+                    this[i] = prop;
+                } else {
+                    this['_' + i] = prop;
+                }
+            }
+        }
+        this._config = config;
+        // Lenient ordinal parsing accepts just a number in addition to
+        // number + (possibly) stuff coming from _dayOfMonthOrdinalParse.
+        // TODO: Remove "ordinalParse" fallback in next major release.
+        this._dayOfMonthOrdinalParseLenient = new RegExp(
+            (this._dayOfMonthOrdinalParse.source || this._ordinalParse.source) +
+                '|' +
+                /\d{1,2}/.source
+        );
+    }
+
+    function mergeConfigs(parentConfig, childConfig) {
+        var res = extend({}, parentConfig),
+            prop;
+        for (prop in childConfig) {
+            if (hasOwnProp(childConfig, prop)) {
+                if (isObject(parentConfig[prop]) && isObject(childConfig[prop])) {
+                    res[prop] = {};
+                    extend(res[prop], parentConfig[prop]);
+                    extend(res[prop], childConfig[prop]);
+                } else if (childConfig[prop] != null) {
+                    res[prop] = childConfig[prop];
+                } else {
+                    delete res[prop];
+                }
+            }
+        }
+        for (prop in parentConfig) {
+            if (
+                hasOwnProp(parentConfig, prop) &&
+                !hasOwnProp(childConfig, prop) &&
+                isObject(parentConfig[prop])
+            ) {
+                // make sure changes to properties don't modify parent config
+                res[prop] = extend({}, res[prop]);
+            }
+        }
+        return res;
+    }
+
+    function Locale(config) {
+        if (config != null) {
+            this.set(config);
+        }
+    }
+
+    var keys;
+
+    if (Object.keys) {
+        keys = Object.keys;
+    } else {
+        keys = function (obj) {
+            var i,
+                res = [];
+            for (i in obj) {
+                if (hasOwnProp(obj, i)) {
+                    res.push(i);
+                }
+            }
+            return res;
+        };
+    }
+
+    var defaultCalendar = {
+        sameDay: '[Today at] LT',
+        nextDay: '[Tomorrow at] LT',
+        nextWeek: 'dddd [at] LT',
+        lastDay: '[Yesterday at] LT',
+        lastWeek: '[Last] dddd [at] LT',
+        sameElse: 'L',
+    };
+
+    function calendar$1(key, mom, now) {
+        var output = this._calendar[key] || this._calendar['sameElse'];
+        return isFunction(output) ? output.call(mom, now) : output;
+    }
+
+    var defaultLongDateFormat = {
+        LTS: 'h:mm:ss A',
+        LT: 'h:mm A',
+        L: 'MM/DD/YYYY',
+        LL: 'MMMM D, YYYY',
+        LLL: 'MMMM D, YYYY h:mm A',
+        LLLL: 'dddd, MMMM D, YYYY h:mm A',
+    };
+
+    function longDateFormat(key) {
+        var format = this._longDateFormat[key],
+            formatUpper = this._longDateFormat[key.toUpperCase()],
+            formatCache = this._longDateFormatCache;
+
+        if (format || !formatUpper) {
+            return format;
+        }
+
+        if (
+            formatCache &&
+            formatCache[key] &&
+            formatCache[key].formatUpper === formatUpper
+        ) {
+            return formatCache[key].format;
+        }
+
+        format = formatUpper
+            .match(formattingTokens)
+            .map(function (tok) {
+                if (
+                    tok === 'MMMM' ||
+                    tok === 'MM' ||
+                    tok === 'DD' ||
+                    tok === 'dddd'
+                ) {
+                    return tok.slice(1);
+                }
+                return tok;
+            })
+            .join('');
+
+        if (!formatCache) {
+            formatCache = this._longDateFormatCache = {};
+        }
+        formatCache[key] = {
+            formatUpper: formatUpper,
+            format: format,
+        };
+        return format;
+    }
+
+    var defaultInvalidDate = 'Invalid date';
+
+    function invalidDate() {
+        return this._invalidDate;
+    }
+
+    var defaultOrdinal = '%d',
+        defaultDayOfMonthOrdinalParse = /\d{1,2}/;
+
+    function ordinal(number) {
+        return this._ordinal.replace('%d', number);
+    }
+
+    var defaultRelativeTime = {
+        future: 'in %s',
+        past: '%s ago',
+        s: 'a few seconds',
+        ss: '%d seconds',
+        m: 'a minute',
+        mm: '%d minutes',
+        h: 'an hour',
+        hh: '%d hours',
+        d: 'a day',
+        dd: '%d days',
+        w: 'a week',
+        ww: '%d weeks',
+        M: 'a month',
+        MM: '%d months',
+        y: 'a year',
+        yy: '%d years',
+    };
+
+    function relativeTimeWithoutPostformat(
+        number,
+        withoutSuffix,
+        string,
+        isFuture
+    ) {
+        var output = this._relativeTime[string];
+        return isFunction(output)
+            ? output(number, withoutSuffix, string, isFuture)
+            : output.replace(/%d/i, number);
+    }
+
+    function relativeTime$1(number, withoutSuffix, string, isFuture) {
+        return this.postformat(
+            relativeTimeWithoutPostformat.call(
+                this,
+                number,
+                withoutSuffix,
+                string,
+                isFuture
+            )
+        );
+    }
+
+    function pastFutureWithoutPostformat(diff, output) {
+        var format = this._relativeTime[diff > 0 ? 'future' : 'past'];
+        return isFunction(format) ? format(output) : format.replace(/%s/i, output);
+    }
+
+    function pastFuture(diff, output) {
+        return this.postformat(
+            pastFutureWithoutPostformat.call(this, diff, output)
+        );
+    }
+
+    function createDate(y, m, d, h, M, s, ms) {
+        // can't just apply() to create a date:
+        // https://stackoverflow.com/q/181348
+        var date;
+        // the date constructor remaps years 0-99 to 1900-1999
+        if (y < 100 && y >= 0) {
+            // preserve leap years using a full 400 year cycle, then reset
+            date = new Date(y + 400, m, d, h, M, s, ms);
+            if (isFinite(date.getFullYear())) {
+                date.setFullYear(y);
+            }
+        } else {
+            date = new Date(y, m, d, h, M, s, ms);
+        }
+
+        return date;
+    }
+
+    function createUTCDate(y) {
+        var date, args;
+        // the Date.UTC function remaps years 0-99 to 1900-1999
+        if (y < 100 && y >= 0) {
+            args = Array.prototype.slice.call(arguments);
+            // preserve leap years using a full 400 year cycle, then reset
+            args[0] = y + 400;
+            date = new Date(Date.UTC.apply(null, args));
+            if (isFinite(date.getUTCFullYear())) {
+                date.setUTCFullYear(y);
+            }
+        } else {
+            date = new Date(Date.UTC.apply(null, arguments));
+        }
+
+        return date;
+    }
+
+    // start-of-first-week - start-of-year
+    function firstWeekOffset(year, dow, doy) {
+        var // first-week day -- which january is always in the first week (4 for iso, 1 for other)
+            fwd = 7 + dow - doy,
+            // first-week day local weekday -- which local weekday is fwd
+            fwdlw = (7 + createUTCDate(year, 0, fwd).getUTCDay() - dow) % 7;
+
+        return -fwdlw + fwd - 1;
+    }
+
+    // https://en.wikipedia.org/wiki/ISO_week_date#Calculating_a_date_given_the_year.2C_week_number_and_weekday
+    function dayOfYearFromWeeks(year, week, weekday, dow, doy) {
+        var localWeekday = (7 + weekday - dow) % 7,
+            weekOffset = firstWeekOffset(year, dow, doy),
+            dayOfYear = 1 + 7 * (week - 1) + localWeekday + weekOffset,
+            resYear,
+            resDayOfYear;
+
+        if (dayOfYear <= 0) {
+            resYear = year - 1;
+            resDayOfYear = daysInYear(resYear) + dayOfYear;
+        } else if (dayOfYear > daysInYear(year)) {
+            resYear = year + 1;
+            resDayOfYear = dayOfYear - daysInYear(year);
+        } else {
+            resYear = year;
+            resDayOfYear = dayOfYear;
+        }
+
+        return {
+            year: resYear,
+            dayOfYear: resDayOfYear,
+        };
+    }
+
+    function weekOfYearFromDayOfYear(year, dayOfYear, dow, doy) {
+        var weekOffset = firstWeekOffset(year, dow, doy),
+            week = Math.floor((dayOfYear - weekOffset - 1) / 7) + 1,
+            resWeek,
+            resYear;
+
+        if (week < 1) {
+            resYear = year - 1;
+            resWeek = week + weeksInYear(resYear, dow, doy);
+        } else if (week > weeksInYear(year, dow, doy)) {
+            resWeek = week - weeksInYear(year, dow, doy);
+            resYear = year + 1;
+        } else {
+            resYear = year;
+            resWeek = week;
+        }
+
+        return {
+            week: resWeek,
+            year: resYear,
+        };
+    }
+
+    function weekOfYear(mom, dow, doy) {
+        return weekOfYearFromDayOfYear(mom.year(), mom.dayOfYear(), dow, doy);
+    }
+
+    function weekOfYearFromDate(year, month, date, dow, doy) {
+        var dayOfYear =
+            Math.round(
+                (createUTCDate(year, month, date) - createUTCDate(year, 0, 1)) /
+                    864e5
+            ) + 1;
+
+        return weekOfYearFromDayOfYear(year, dayOfYear, dow, doy);
+    }
+
+    function weeksInYear(year, dow, doy) {
+        var weekOffset = firstWeekOffset(year, dow, doy),
+            weekOffsetNext = firstWeekOffset(year + 1, dow, doy);
+        return (daysInYear(year) - weekOffset + weekOffsetNext) / 7;
+    }
+
+    // FORMATTING
+
+    addFormatToken('w', ['ww', 2], 'wo', 'week');
+    addFormatToken('W', ['WW', 2], 'Wo', 'isoWeek');
+
+    // PARSING
+
+    addRegexToken('w', match1to2, match1to2NoLeadingZero);
+    addRegexToken('ww', match1to2, match2);
+    addRegexToken('W', match1to2, match1to2NoLeadingZero);
+    addRegexToken('WW', match1to2, match2);
+
+    addWeekParseToken(
+        ['w', 'ww', 'W', 'WW'],
+        function (input, week, config, token) {
+            week[token.substr(0, 1)] = toInt(input);
+        }
+    );
+
+    // HELPERS
+
+    // LOCALES
+
+    function localeWeek(mom) {
+        return weekOfYear(mom, this._week.dow, this._week.doy).week;
+    }
+
+    var defaultLocaleWeek = {
+        dow: 0, // Sunday is the first day of the week.
+        doy: 6, // The week that contains Jan 6th is the first week of the year.
+    };
+
+    function localeFirstDayOfWeek() {
+        return this._week.dow;
+    }
+
+    function localeFirstDayOfYear() {
+        return this._week.doy;
+    }
+
+    // MOMENTS
+
+    function getSetWeek(input) {
+        var week = this.localeData().week(this);
+        return input == null ? week : this.add((input - week) * 7, 'd');
+    }
+
+    function getSetISOWeek(input) {
+        var week = weekOfYear(this, 1, 4).week;
+        return input == null ? week : this.add((input - week) * 7, 'd');
     }
 
     // FORMATTING
@@ -3857,34 +3974,49 @@ formatters.O = function (v) {
     }
 
     function isLocaleNameSane(name) {
-        // Prevent names that look like filesystem paths, i.e contain '/' or '\'
-        // Ensure name is available and function returns boolean
-        return !!(name && name.match('^[^/\\\\]*$'));
+        // Only canonical locale module names are safe to append to the require path.
+        return typeof name === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
     }
 
     function loadLocale(name) {
         var oldLocale = null,
-            aliasedRequire;
+            aliasedRequire,
+            normalizedName;
+
+        // Preserve exact custom locale names before trying the canonical built-in name.
+        // Use hasOwnProp rather than a plain lookup so that names like "__proto__",
+        // "constructor", or "prototype" can't resolve to an inherited Object.prototype
+        // property instead of a real (or missing) locale entry.
+        if (hasOwnProp(locales, name)) {
+            return locales[name];
+        }
+
+        normalizedName = normalizeLocale(name);
+        if (hasOwnProp(locales, normalizedName)) {
+            return locales[normalizedName];
+        }
+
         // TODO: Find a better way to register and load all the locales in Node
         if (
-            locales[name] === undefined &&
-            "object" !== 'undefined' &&
+             true &&
             module &&
             module.exports &&
-            isLocaleNameSane(name)
+            isLocaleNameSane(normalizedName)
         ) {
             try {
                 oldLocale = globalLocale._abbr;
                 aliasedRequire = __WEBPACK_EXTERNAL_createRequire(import.meta.url);
-                aliasedRequire('./locale/' + name);
+                aliasedRequire('./locale/' + normalizedName);
                 getSetGlobalLocale(oldLocale);
             } catch (e) {
                 // mark as not found to avoid repeating expensive file require call causing high CPU
                 // when trying to find en-US, en_US, en-us for every format call
-                locales[name] = null; // null means not found
+                locales[normalizedName] = null; // null means not found
             }
         }
-        return locales[name];
+        if (hasOwnProp(locales, normalizedName)) {
+            return locales[normalizedName];
+        }
     }
 
     // This function will load locale and then set the global locale.  If
@@ -3970,17 +4102,20 @@ formatters.O = function (v) {
     }
 
     function updateLocale(name, config) {
-        if (config != null) {
-            var locale,
-                tmpLocale,
-                parentConfig = baseConfig;
+        var locale,
+            tmpLocale = loadLocale(name),
+            parentConfig = baseConfig;
 
+        if (tmpLocale != null) {
+            name = tmpLocale._abbr;
+        }
+
+        if (config != null) {
             if (locales[name] != null && locales[name].parentLocale != null) {
                 // Update existing child locale in-place to avoid memory-leaks
                 locales[name].set(mergeConfigs(locales[name]._config, config));
             } else {
                 // MERGE
-                tmpLocale = loadLocale(name);
                 if (tmpLocale != null) {
                     parentConfig = tmpLocale._config;
                 }
@@ -4348,9 +4483,46 @@ formatters.O = function (v) {
         return c;
     }
 
-    function currentDateArray(config) {
+    function currentDateArray(config, now, forWeek) {
+        var hadWeekContext = Object.prototype.hasOwnProperty.call(
+                config,
+                '_isDefaultDatePartsForWeek'
+            ),
+            weekContext = config._isDefaultDatePartsForWeek;
+
         // hooks is actually the exported moment object
-        var nowValue = new Date(hooks.now());
+        config._isDefaultDatePartsForWeek = !!forWeek;
+        try {
+            return hooks._getDefaultDateParts(config, now, forWeek);
+        } finally {
+            if (hadWeekContext) {
+                config._isDefaultDatePartsForWeek = weekContext;
+            } else {
+                delete config._isDefaultDatePartsForWeek;
+            }
+        }
+    }
+
+    function currentDateNow(config) {
+        var now = config._defaultDatePartsNow;
+
+        if (!now) {
+            return hooks.now();
+        }
+        if (!now.hasValue) {
+            now.value = hooks.now();
+            now.hasValue = true;
+        }
+        return now.value;
+    }
+
+    // Internal hook for extensions that supply omitted calendar fields.
+    function getDefaultDateParts(config, now, forWeek) {
+        var useWeekDefaults = forWeek || config._isDefaultDatePartsForWeek,
+            nowValue = useWeekDefaults ? createLocal(now) : new Date(now);
+        if (useWeekDefaults) {
+            return [nowValue.year(), nowValue.month(), nowValue.date()];
+        }
         if (config._useUTC) {
             return [
                 nowValue.getUTCFullYear(),
@@ -4361,6 +4533,8 @@ formatters.O = function (v) {
         return [nowValue.getFullYear(), nowValue.getMonth(), nowValue.getDate()];
     }
 
+    hooks._getDefaultDateParts = getDefaultDateParts;
+
     // convert an array to a date.
     // the array should mirror the parameters below
     // note: all values past the year are optional and will default to the lowest possible value.
@@ -4369,24 +4543,34 @@ formatters.O = function (v) {
         var i,
             date,
             input = [],
+            now,
             currentDate,
             expectedWeekday,
-            yearToUse;
+            yearToUse,
+            dateIsDefaulted;
 
         if (config._d) {
             return;
         }
 
-        currentDate = currentDateArray(config);
+        if (
+            config._a[YEAR] == null ||
+            config._a[MONTH] == null ||
+            config._a[DATE] == null
+        ) {
+            now = currentDateNow(config);
+            currentDate = currentDateArray(config, now);
+        }
 
         //compute day of the year from weeks and weekdays
         if (config._w && config._a[DATE] == null && config._a[MONTH] == null) {
-            dayOfYearFromWeekInfo(config);
+            dayOfYearFromWeekInfo(config, currentDateArray(config, now, true));
         }
 
         //if the day of the year is set, figure out what it is
         if (config._dayOfYear != null) {
-            yearToUse = defaults(config._a[YEAR], currentDate[YEAR]);
+            yearToUse =
+                config._a[YEAR] != null ? config._a[YEAR] : currentDate[YEAR];
 
             if (
                 config._dayOfYear > daysInYear(yearToUse) ||
@@ -4399,6 +4583,11 @@ formatters.O = function (v) {
             config._a[MONTH] = date.getUTCMonth();
             config._a[DATE] = date.getUTCDate();
         }
+
+        dateIsDefaulted =
+            config._a[YEAR] == null ||
+            config._a[MONTH] == null ||
+            config._a[DATE] == null;
 
         // Default to current date.
         // * if no year, month, day of month are given, default to today
@@ -4448,13 +4637,14 @@ formatters.O = function (v) {
         if (
             config._w &&
             typeof config._w.d !== 'undefined' &&
+            !dateIsDefaulted &&
             config._w.d !== expectedWeekday
         ) {
             getParsingFlags(config).weekdayMismatch = true;
         }
     }
 
-    function dayOfYearFromWeekInfo(config) {
+    function dayOfYearFromWeekInfo(config, currentDate) {
         var w, weekYear, week, weekday, dow, doy, temp, weekdayOverflow, curWeek;
 
         w = config._w;
@@ -4469,7 +4659,13 @@ formatters.O = function (v) {
             weekYear = defaults(
                 w.GG,
                 config._a[YEAR],
-                weekOfYear(createLocal(), 1, 4).year
+                weekOfYearFromDate(
+                    currentDate[YEAR],
+                    currentDate[MONTH],
+                    currentDate[DATE],
+                    1,
+                    4
+                ).year
             );
             week = defaults(w.W, 1);
             weekday = defaults(w.E, 1);
@@ -4480,7 +4676,13 @@ formatters.O = function (v) {
             dow = config._locale._week.dow;
             doy = config._locale._week.doy;
 
-            curWeek = weekOfYear(createLocal(), dow, doy);
+            curWeek = weekOfYearFromDate(
+                currentDate[YEAR],
+                currentDate[MONTH],
+                currentDate[DATE],
+                dow,
+                doy
+            );
 
             weekYear = defaults(w.gg, config._a[YEAR], curWeek.year);
 
@@ -4646,6 +4848,7 @@ formatters.O = function (v) {
             currentScore,
             validFormatFound,
             bestFormatIsValid = false,
+            defaultDatePartsNow = {},
             configfLen = config._f.length;
 
         if (configfLen === 0) {
@@ -4661,10 +4864,11 @@ formatters.O = function (v) {
             if (config._useUTC != null) {
                 tempConfig._useUTC = config._useUTC;
             }
+            tempConfig._defaultDatePartsNow = defaultDatePartsNow;
             tempConfig._f = config._f[i];
             configFromStringAndFormat(tempConfig);
 
-            if (isValid(tempConfig)) {
+            if (isValid$2(tempConfig)) {
                 validFormatFound = true;
             }
 
@@ -4734,7 +4938,7 @@ formatters.O = function (v) {
         config._locale = config._locale || getLocale(config._l);
 
         if (input === null || (format === undefined && input === '')) {
-            return createInvalid({ nullInput: true });
+            return createInvalid$1({ nullInput: true });
         }
 
         if (typeof input === 'string') {
@@ -4753,7 +4957,7 @@ formatters.O = function (v) {
             configFromInput(config);
         }
 
-        if (!isValid(config)) {
+        if (!isValid$2(config)) {
             config._d = null;
         }
 
@@ -4825,7 +5029,7 @@ formatters.O = function (v) {
                 if (this.isValid() && other.isValid()) {
                     return other < this ? this : other;
                 } else {
-                    return createInvalid();
+                    return createInvalid$1();
                 }
             }
         ),
@@ -4836,7 +5040,7 @@ formatters.O = function (v) {
                 if (this.isValid() && other.isValid()) {
                     return other > this ? this : other;
                 } else {
-                    return createInvalid();
+                    return createInvalid$1();
                 }
             }
         );
@@ -4854,9 +5058,20 @@ formatters.O = function (v) {
         if (!moments.length) {
             return createLocal();
         }
-        res = moments[0];
-        for (i = 1; i < moments.length; ++i) {
-            if (!moments[i].isValid() || moments[i][fn](res)) {
+        for (i = 0; i < moments.length; ++i) {
+            if (isMoment(moments[i])) {
+                res = moments[i];
+                break;
+            }
+        }
+        if (!res) {
+            return createInvalid$1();
+        }
+        for (++i; i < moments.length; ++i) {
+            if (
+                isMoment(moments[i]) &&
+                (!moments[i].isValid() || moments[i][fn](res))
+            ) {
                 res = moments[i];
             }
         }
@@ -4927,7 +5142,7 @@ formatters.O = function (v) {
         return this._isValid;
     }
 
-    function createInvalid$1() {
+    function createInvalid() {
         return createDuration(NaN);
     }
 
@@ -4986,8 +5201,7 @@ formatters.O = function (v) {
             i;
         for (i = 0; i < len; i++) {
             if (
-                (dontConvert && array1[i] !== array2[i]) ||
-                (!dontConvert && toInt(array1[i]) !== toInt(array2[i]))
+                (toInt(array1[i]) !== toInt(array2[i]))
             ) {
                 diffs++;
             }
@@ -5022,8 +5236,12 @@ formatters.O = function (v) {
     addRegexToken('Z', matchShortOffset);
     addRegexToken('ZZ', matchShortOffset);
     addParseToken(['Z', 'ZZ'], function (input, array, config) {
+        var offset = offsetFromString(matchShortOffset, input);
         config._useUTC = true;
-        config._tzm = offsetFromString(matchShortOffset, input);
+        config._tzm = offset;
+        if (offset === null) {
+            getParsingFlags(config).invalidOffset = input;
+        }
     });
 
     // HELPERS
@@ -5046,6 +5264,13 @@ formatters.O = function (v) {
         chunk = matches[matches.length - 1] || [];
         parts = (chunk + '').match(chunkOffset) || ['-', 0, 0];
         minutes = +(parts[1] * 60) + toInt(parts[2]);
+
+        if (
+            toInt(parts[2]) > 59 ||
+            (parts[0] === '+' ? minutes > 14 * 60 : minutes > 12 * 60)
+        ) {
+            return null;
+        }
 
         return minutes === 0 ? 0 : parts[0] === '+' ? minutes : -minutes;
     }
@@ -5117,7 +5342,7 @@ formatters.O = function (v) {
             }
             if (offset !== input) {
                 if (!keepLocalTime || this._changeInProgress) {
-                    addSubtract(
+                    addSubtract$1(
                         this,
                         createDuration(input - offset, 'm'),
                         1,
@@ -5310,7 +5535,7 @@ formatters.O = function (v) {
     }
 
     createDuration.fn = Duration.prototype;
-    createDuration.invalid = createInvalid$1;
+    createDuration.invalid = createInvalid;
 
     function parseIso(inp, sign) {
         // We'd normally use ~~inp for this, but unfortunately it also
@@ -5374,12 +5599,12 @@ formatters.O = function (v) {
             }
 
             dur = createDuration(val, period);
-            addSubtract(this, dur, direction);
+            addSubtract$1(this, dur, direction);
             return this;
         };
     }
 
-    function addSubtract(mom, duration, isAdding, updateOffset) {
+    function addSubtract$1(mom, duration, isAdding, updateOffset) {
         var milliseconds = duration._milliseconds,
             days = absRound(duration._days),
             months = absRound(duration._months);
@@ -5392,10 +5617,10 @@ formatters.O = function (v) {
         updateOffset = updateOffset == null ? true : updateOffset;
 
         if (months) {
-            setMonth(mom, get(mom, 'Month') + months * isAdding);
+            setMonth(mom, get$2(mom, 'Month') + months * isAdding);
         }
         if (days) {
-            set$1(mom, 'Date', get(mom, 'Date') + days * isAdding);
+            set$1(mom, 'Date', get$2(mom, 'Date') + days * isAdding);
         }
         if (milliseconds) {
             mom._d.setTime(mom._d.valueOf() + milliseconds * isAdding);
@@ -5405,8 +5630,8 @@ formatters.O = function (v) {
         }
     }
 
-    var add = createAdder(1, 'add'),
-        subtract = createAdder(-1, 'subtract');
+    var add$1 = createAdder(1, 'add'),
+        subtract$1 = createAdder(-1, 'subtract');
 
     function isString(input) {
         return typeof input === 'string' || input instanceof String;
@@ -5518,7 +5743,7 @@ formatters.O = function (v) {
                       : 'sameElse';
     }
 
-    function calendar$1(time, formats) {
+    function calendar(time, formats) {
         // Support for single parameter, formats only overload to the calendar function
         if (arguments.length === 1) {
             if (!arguments[0]) {
@@ -5548,7 +5773,7 @@ formatters.O = function (v) {
         );
     }
 
-    function clone() {
+    function clone$1() {
         return new Moment(this);
     }
 
@@ -5704,7 +5929,7 @@ formatters.O = function (v) {
         return this.clone().locale('en').format('ddd MMM DD YYYY HH:mm:ss [GMT]ZZ');
     }
 
-    function toISOString(keepOffset) {
+    function toISOString$1(keepOffset) {
         if (!this.isValid()) {
             return null;
         }
@@ -5844,7 +6069,7 @@ formatters.O = function (v) {
         MS_PER_400_YEARS = (365 * 400 + 97) * 24 * MS_PER_HOUR;
 
     // actual modulo - handles negative numbers (for dates before 1970):
-    function mod$1(dividend, divisor) {
+    function mod(dividend, divisor) {
         return ((dividend % divisor) + divisor) % divisor;
     }
 
@@ -5911,18 +6136,18 @@ formatters.O = function (v) {
                 break;
             case 'hour':
                 time = this._d.valueOf();
-                time -= mod$1(
+                time -= mod(
                     time + (this._isUTC ? 0 : this.utcOffset() * MS_PER_MINUTE),
                     MS_PER_HOUR
                 );
                 break;
             case 'minute':
                 time = this._d.valueOf();
-                time -= mod$1(time, MS_PER_MINUTE);
+                time -= mod(time, MS_PER_MINUTE);
                 break;
             case 'second':
                 time = this._d.valueOf();
-                time -= mod$1(time, MS_PER_SECOND);
+                time -= mod(time, MS_PER_SECOND);
                 break;
         }
 
@@ -5979,7 +6204,7 @@ formatters.O = function (v) {
                 time = this._d.valueOf();
                 time +=
                     MS_PER_HOUR -
-                    mod$1(
+                    mod(
                         time + (this._isUTC ? 0 : this.utcOffset() * MS_PER_MINUTE),
                         MS_PER_HOUR
                     ) -
@@ -5987,11 +6212,11 @@ formatters.O = function (v) {
                 break;
             case 'minute':
                 time = this._d.valueOf();
-                time += MS_PER_MINUTE - mod$1(time, MS_PER_MINUTE) - 1;
+                time += MS_PER_MINUTE - mod(time, MS_PER_MINUTE) - 1;
                 break;
             case 'second':
                 time = this._d.valueOf();
-                time += MS_PER_SECOND - mod$1(time, MS_PER_SECOND) - 1;
+                time += MS_PER_SECOND - mod(time, MS_PER_SECOND) - 1;
                 break;
         }
 
@@ -6000,7 +6225,7 @@ formatters.O = function (v) {
         return this;
     }
 
-    function valueOf() {
+    function valueOf$1() {
         return this._d.valueOf() - (this._offset || 0) * 60000;
     }
 
@@ -6043,8 +6268,8 @@ formatters.O = function (v) {
         return this.isValid() ? this.toISOString() : null;
     }
 
-    function isValid$2() {
-        return isValid(this);
+    function isValid() {
+        return isValid$2(this);
     }
 
     function parsingFlags() {
@@ -6185,7 +6410,7 @@ formatters.O = function (v) {
     }
 
     function localeErasConvertYear(era, year) {
-        var dir = era.since <= era.until ? +1 : -1;
+        var dir = era.since <= era.until ? 1 : -1;
         if (year === undefined) {
             return hooks(era.since).year();
         } else {
@@ -6260,7 +6485,7 @@ formatters.O = function (v) {
             val,
             eras = this.localeData().eras();
         for (i = 0, l = eras.length; i < l; ++i) {
-            dir = eras[i].since <= eras[i].until ? +1 : -1;
+            dir = eras[i].since <= eras[i].until ? 1 : -1;
 
             // truncate time
             val = this.clone().startOf('day').valueOf();
@@ -6619,106 +6844,106 @@ formatters.O = function (v) {
         return this._isUTC ? 'Coordinated Universal Time' : '';
     }
 
-    var proto = Moment.prototype;
+    var proto$2 = Moment.prototype;
 
-    proto.add = add;
-    proto.calendar = calendar$1;
-    proto.clone = clone;
-    proto.diff = diff;
-    proto.endOf = endOf;
-    proto.format = format;
-    proto.from = from;
-    proto.fromNow = fromNow;
-    proto.to = to;
-    proto.toNow = toNow;
-    proto.get = stringGet;
-    proto.invalidAt = invalidAt;
-    proto.isAfter = isAfter;
-    proto.isBefore = isBefore;
-    proto.isBetween = isBetween;
-    proto.isSame = isSame;
-    proto.isSameOrAfter = isSameOrAfter;
-    proto.isSameOrBefore = isSameOrBefore;
-    proto.isValid = isValid$2;
-    proto.lang = lang;
-    proto.locale = locale;
-    proto.localeData = localeData;
-    proto.max = prototypeMax;
-    proto.min = prototypeMin;
-    proto.parsingFlags = parsingFlags;
-    proto.set = stringSet;
-    proto.startOf = startOf;
-    proto.subtract = subtract;
-    proto.toArray = toArray;
-    proto.toObject = toObject;
-    proto.toDate = toDate;
-    proto.toISOString = toISOString;
-    proto.inspect = inspect;
+    proto$2.add = add$1;
+    proto$2.calendar = calendar;
+    proto$2.clone = clone$1;
+    proto$2.diff = diff;
+    proto$2.endOf = endOf;
+    proto$2.format = format;
+    proto$2.from = from;
+    proto$2.fromNow = fromNow;
+    proto$2.to = to;
+    proto$2.toNow = toNow;
+    proto$2.get = stringGet;
+    proto$2.invalidAt = invalidAt;
+    proto$2.isAfter = isAfter;
+    proto$2.isBefore = isBefore;
+    proto$2.isBetween = isBetween;
+    proto$2.isSame = isSame;
+    proto$2.isSameOrAfter = isSameOrAfter;
+    proto$2.isSameOrBefore = isSameOrBefore;
+    proto$2.isValid = isValid;
+    proto$2.lang = lang;
+    proto$2.locale = locale;
+    proto$2.localeData = localeData;
+    proto$2.max = prototypeMax;
+    proto$2.min = prototypeMin;
+    proto$2.parsingFlags = parsingFlags;
+    proto$2.set = stringSet;
+    proto$2.startOf = startOf;
+    proto$2.subtract = subtract$1;
+    proto$2.toArray = toArray;
+    proto$2.toObject = toObject;
+    proto$2.toDate = toDate;
+    proto$2.toISOString = toISOString$1;
+    proto$2.inspect = inspect;
     if (typeof Symbol !== 'undefined' && Symbol.for != null) {
-        proto[Symbol.for('nodejs.util.inspect.custom')] = function () {
+        proto$2[Symbol.for('nodejs.util.inspect.custom')] = function () {
             return 'Moment<' + this.format() + '>';
         };
     }
-    proto.toJSON = toJSON;
-    proto.toString = toString;
-    proto.unix = unix;
-    proto.valueOf = valueOf;
-    proto.creationData = creationData;
-    proto.eraName = getEraName;
-    proto.eraNarrow = getEraNarrow;
-    proto.eraAbbr = getEraAbbr;
-    proto.eraYear = getEraYear;
-    proto.year = getSetYear;
-    proto.isLeapYear = getIsLeapYear;
-    proto.weekYear = getSetWeekYear;
-    proto.isoWeekYear = getSetISOWeekYear;
-    proto.quarter = proto.quarters = getSetQuarter;
-    proto.month = getSetMonth;
-    proto.daysInMonth = getDaysInMonth;
-    proto.week = proto.weeks = getSetWeek;
-    proto.isoWeek = proto.isoWeeks = getSetISOWeek;
-    proto.weeksInYear = getWeeksInYear;
-    proto.weeksInWeekYear = getWeeksInWeekYear;
-    proto.isoWeeksInYear = getISOWeeksInYear;
-    proto.isoWeeksInISOWeekYear = getISOWeeksInISOWeekYear;
-    proto.date = getSetDayOfMonth;
-    proto.day = proto.days = getSetDayOfWeek;
-    proto.weekday = getSetLocaleDayOfWeek;
-    proto.isoWeekday = getSetISODayOfWeek;
-    proto.dayOfYear = getSetDayOfYear;
-    proto.hour = proto.hours = getSetHour;
-    proto.minute = proto.minutes = getSetMinute;
-    proto.second = proto.seconds = getSetSecond;
-    proto.millisecond = proto.milliseconds = getSetMillisecond;
-    proto.utcOffset = getSetOffset;
-    proto.utc = setOffsetToUTC;
-    proto.local = setOffsetToLocal;
-    proto.parseZone = setOffsetToParsedOffset;
-    proto.hasAlignedHourOffset = hasAlignedHourOffset;
-    proto.isDST = isDaylightSavingTime;
-    proto.isLocal = isLocal;
-    proto.isUtcOffset = isUtcOffset;
-    proto.isUtc = isUtc;
-    proto.isUTC = isUtc;
-    proto.zoneAbbr = getZoneAbbr;
-    proto.zoneName = getZoneName;
-    proto.dates = deprecate(
+    proto$2.toJSON = toJSON;
+    proto$2.toString = toString;
+    proto$2.unix = unix;
+    proto$2.valueOf = valueOf$1;
+    proto$2.creationData = creationData;
+    proto$2.eraName = getEraName;
+    proto$2.eraNarrow = getEraNarrow;
+    proto$2.eraAbbr = getEraAbbr;
+    proto$2.eraYear = getEraYear;
+    proto$2.year = getSetYear;
+    proto$2.isLeapYear = getIsLeapYear;
+    proto$2.weekYear = getSetWeekYear;
+    proto$2.isoWeekYear = getSetISOWeekYear;
+    proto$2.quarter = proto$2.quarters = getSetQuarter;
+    proto$2.month = getSetMonth;
+    proto$2.daysInMonth = getDaysInMonth;
+    proto$2.week = proto$2.weeks = getSetWeek;
+    proto$2.isoWeek = proto$2.isoWeeks = getSetISOWeek;
+    proto$2.weeksInYear = getWeeksInYear;
+    proto$2.weeksInWeekYear = getWeeksInWeekYear;
+    proto$2.isoWeeksInYear = getISOWeeksInYear;
+    proto$2.isoWeeksInISOWeekYear = getISOWeeksInISOWeekYear;
+    proto$2.date = getSetDayOfMonth;
+    proto$2.day = proto$2.days = getSetDayOfWeek;
+    proto$2.weekday = getSetLocaleDayOfWeek;
+    proto$2.isoWeekday = getSetISODayOfWeek;
+    proto$2.dayOfYear = getSetDayOfYear;
+    proto$2.hour = proto$2.hours = getSetHour;
+    proto$2.minute = proto$2.minutes = getSetMinute;
+    proto$2.second = proto$2.seconds = getSetSecond;
+    proto$2.millisecond = proto$2.milliseconds = getSetMillisecond;
+    proto$2.utcOffset = getSetOffset;
+    proto$2.utc = setOffsetToUTC;
+    proto$2.local = setOffsetToLocal;
+    proto$2.parseZone = setOffsetToParsedOffset;
+    proto$2.hasAlignedHourOffset = hasAlignedHourOffset;
+    proto$2.isDST = isDaylightSavingTime;
+    proto$2.isLocal = isLocal;
+    proto$2.isUtcOffset = isUtcOffset;
+    proto$2.isUtc = isUtc;
+    proto$2.isUTC = isUtc;
+    proto$2.zoneAbbr = getZoneAbbr;
+    proto$2.zoneName = getZoneName;
+    proto$2.dates = deprecate(
         'dates accessor is deprecated. Use date instead.',
         getSetDayOfMonth
     );
-    proto.months = deprecate(
+    proto$2.months = deprecate(
         'months accessor is deprecated. Use month instead',
         getSetMonth
     );
-    proto.years = deprecate(
+    proto$2.years = deprecate(
         'years accessor is deprecated. Use year instead',
         getSetYear
     );
-    proto.zone = deprecate(
+    proto$2.zone = deprecate(
         'moment().zone is deprecated, use moment().utcOffset instead. http://momentjs.com/guides/#/warnings/zone/',
         getSetZone
     );
-    proto.isDSTShifted = deprecate(
+    proto$2.isDSTShifted = deprecate(
         'isDSTShifted is deprecated. See http://momentjs.com/guides/#/warnings/dst-shifted/ for more information',
         isDaylightSavingTimeShifted
     );
@@ -6737,13 +6962,13 @@ formatters.O = function (v) {
 
     var proto$1 = Locale.prototype;
 
-    proto$1.calendar = calendar;
+    proto$1.calendar = calendar$1;
     proto$1.longDateFormat = longDateFormat;
     proto$1.invalidDate = invalidDate;
     proto$1.ordinal = ordinal;
     proto$1.preparse = preParsePostFormat;
     proto$1.postformat = preParsePostFormat;
-    proto$1.relativeTime = relativeTime;
+    proto$1.relativeTime = relativeTime$1;
     proto$1.pastFuture = pastFuture;
     proto$1.set = set;
     proto$1.eras = localeEras;
@@ -6913,7 +7138,7 @@ formatters.O = function (v) {
 
     var mathAbs = Math.abs;
 
-    function abs() {
+    function abs$1() {
         var data = this._data;
 
         this._milliseconds = mathAbs(this._milliseconds);
@@ -6930,7 +7155,7 @@ formatters.O = function (v) {
         return this;
     }
 
-    function addSubtract$1(duration, input, value, direction) {
+    function addSubtract(duration, input, value, direction) {
         var other = createDuration(input, value);
 
         duration._milliseconds += direction * other._milliseconds;
@@ -6941,13 +7166,13 @@ formatters.O = function (v) {
     }
 
     // supports only 2.0-style add(1, 's') or add(duration)
-    function add$1(input, value) {
-        return addSubtract$1(this, input, value, 1);
+    function add(input, value) {
+        return addSubtract(this, input, value, 1);
     }
 
     // supports only 2.0-style subtract(1, 's') or subtract(duration)
-    function subtract$1(input, value) {
-        return addSubtract$1(this, input, value, -1);
+    function subtract(input, value) {
+        return addSubtract(this, input, value, -1);
     }
 
     function absCeil(number) {
@@ -6971,12 +7196,10 @@ formatters.O = function (v) {
 
         // if we have a mix of positive and negative values, bubble down first
         // check: https://github.com/moment/moment/issues/2166
-        if (
-            !(
-                (milliseconds >= 0 && days >= 0 && months >= 0) ||
-                (milliseconds <= 0 && days <= 0 && months <= 0)
-            )
-        ) {
+        if (!(
+            (milliseconds >= 0 && days >= 0 && months >= 0) ||
+            (milliseconds <= 0 && days <= 0 && months <= 0)
+        )) {
             milliseconds += absCeil(monthsToDays(months) + days) * 864e5;
             days = 0;
             months = 0;
@@ -7083,13 +7306,13 @@ formatters.O = function (v) {
         asMonths = makeAs('M'),
         asQuarters = makeAs('Q'),
         asYears = makeAs('y'),
-        valueOf$1 = asMilliseconds;
+        valueOf = asMilliseconds;
 
-    function clone$1() {
+    function clone() {
         return createDuration(this);
     }
 
-    function get$2(units) {
+    function get(units) {
         units = normalizeUnits(units);
         return this.isValid() ? this[units + 's']() : NaN;
     }
@@ -7125,10 +7348,16 @@ formatters.O = function (v) {
 
     // helper function for moment.fn.from, moment.fn.fromNow, and moment.duration.fn.humanize
     function substituteTimeAgo(string, number, withoutSuffix, isFuture, locale) {
-        return locale.relativeTime(number || 1, !!withoutSuffix, string, isFuture);
+        return relativeTimeWithoutPostformat.call(
+            locale,
+            number || 1,
+            !!withoutSuffix,
+            string,
+            isFuture
+        );
     }
 
-    function relativeTime$1(posNegDuration, withoutSuffix, thresholds, locale) {
+    function relativeTime(posNegDuration, withoutSuffix, thresholds, locale) {
         var duration = createDuration(posNegDuration).abs(),
             seconds = round(duration.as('s')),
             minutes = round(duration.as('m')),
@@ -7209,29 +7438,29 @@ formatters.O = function (v) {
             withSuffix = argWithSuffix;
         }
         if (typeof argThresholds === 'object') {
-            th = Object.assign({}, thresholds, argThresholds);
+            th = extend(extend({}, thresholds), argThresholds || {});
             if (argThresholds.s != null && argThresholds.ss == null) {
                 th.ss = argThresholds.s - 1;
             }
         }
 
         locale = this.localeData();
-        output = relativeTime$1(this, !withSuffix, th, locale);
+        output = relativeTime(this, !withSuffix, th, locale);
 
         if (withSuffix) {
-            output = locale.pastFuture(+this, output);
+            output = pastFutureWithoutPostformat.call(locale, +this, output);
         }
 
         return locale.postformat(output);
     }
 
-    var abs$1 = Math.abs;
+    var abs = Math.abs;
 
     function sign(x) {
         return (x > 0) - (x < 0) || +x;
     }
 
-    function toISOString$1() {
+    function toISOString() {
         // for ISO strings we do not use the normal bubbling rules:
         //  * milliseconds bubble up until they become hours
         //  * days do not bubble at all
@@ -7243,9 +7472,9 @@ formatters.O = function (v) {
             return this.localeData().invalidDate();
         }
 
-        var seconds = abs$1(this._milliseconds) / 1000,
-            days = abs$1(this._days),
-            months = abs$1(this._months),
+        var seconds = abs(this._milliseconds) / 1000,
+            days = abs(this._days),
+            months = abs(this._months),
             minutes,
             hours,
             years,
@@ -7293,46 +7522,46 @@ formatters.O = function (v) {
         );
     }
 
-    var proto$2 = Duration.prototype;
+    var proto = Duration.prototype;
 
-    proto$2.isValid = isValid$1;
-    proto$2.abs = abs;
-    proto$2.add = add$1;
-    proto$2.subtract = subtract$1;
-    proto$2.as = as;
-    proto$2.asMilliseconds = asMilliseconds;
-    proto$2.asSeconds = asSeconds;
-    proto$2.asMinutes = asMinutes;
-    proto$2.asHours = asHours;
-    proto$2.asDays = asDays;
-    proto$2.asWeeks = asWeeks;
-    proto$2.asMonths = asMonths;
-    proto$2.asQuarters = asQuarters;
-    proto$2.asYears = asYears;
-    proto$2.valueOf = valueOf$1;
-    proto$2._bubble = bubble;
-    proto$2.clone = clone$1;
-    proto$2.get = get$2;
-    proto$2.milliseconds = milliseconds;
-    proto$2.seconds = seconds;
-    proto$2.minutes = minutes;
-    proto$2.hours = hours;
-    proto$2.days = days;
-    proto$2.weeks = weeks;
-    proto$2.months = months;
-    proto$2.years = years;
-    proto$2.humanize = humanize;
-    proto$2.toISOString = toISOString$1;
-    proto$2.toString = toISOString$1;
-    proto$2.toJSON = toISOString$1;
-    proto$2.locale = locale;
-    proto$2.localeData = localeData;
+    proto.isValid = isValid$1;
+    proto.abs = abs$1;
+    proto.add = add;
+    proto.subtract = subtract;
+    proto.as = as;
+    proto.asMilliseconds = asMilliseconds;
+    proto.asSeconds = asSeconds;
+    proto.asMinutes = asMinutes;
+    proto.asHours = asHours;
+    proto.asDays = asDays;
+    proto.asWeeks = asWeeks;
+    proto.asMonths = asMonths;
+    proto.asQuarters = asQuarters;
+    proto.asYears = asYears;
+    proto.valueOf = valueOf;
+    proto._bubble = bubble;
+    proto.clone = clone;
+    proto.get = get;
+    proto.milliseconds = milliseconds;
+    proto.seconds = seconds;
+    proto.minutes = minutes;
+    proto.hours = hours;
+    proto.days = days;
+    proto.weeks = weeks;
+    proto.months = months;
+    proto.years = years;
+    proto.humanize = humanize;
+    proto.toISOString = toISOString;
+    proto.toString = toISOString;
+    proto.toJSON = toISOString;
+    proto.locale = locale;
+    proto.localeData = localeData;
 
-    proto$2.toIsoString = deprecate(
+    proto.toIsoString = deprecate(
         'toIsoString() is deprecated. Please use toISOString() instead (notice the capitals)',
-        toISOString$1
+        toISOString
     );
-    proto$2.lang = lang;
+    proto.lang = lang;
 
     // FORMATTING
 
@@ -7352,11 +7581,11 @@ formatters.O = function (v) {
 
     //! moment.js
 
-    hooks.version = '2.30.1';
+    hooks.version = '2.31.0';
 
     setHookCallback(createLocal);
 
-    hooks.fn = proto;
+    hooks.fn = proto$2;
     hooks.min = min;
     hooks.max = max;
     hooks.now = now;
@@ -7365,7 +7594,7 @@ formatters.O = function (v) {
     hooks.months = listMonths;
     hooks.isDate = isDate;
     hooks.locale = getSetGlobalLocale;
-    hooks.invalid = createInvalid;
+    hooks.invalid = createInvalid$1;
     hooks.duration = createDuration;
     hooks.isMoment = isMoment;
     hooks.weekdays = listWeekdays;
@@ -7382,7 +7611,7 @@ formatters.O = function (v) {
     hooks.relativeTimeRounding = getSetRelativeTimeRounding;
     hooks.relativeTimeThreshold = getSetRelativeTimeThreshold;
     hooks.calendarFormat = getCalendarFormat;
-    hooks.prototype = proto;
+    hooks.prototype = proto$2;
 
     // currently HTML5 input type only supports 24-hour formats
     hooks.HTML5_FMT = {
@@ -11996,7 +12225,6 @@ const { addAbortListener } = __nccwpck_require__(8474)
 const { Readable } = __nccwpck_require__(7075)
 const { RequestAbortedError, NotSupportedError, InvalidArgumentError, AbortError } = __nccwpck_require__(8707)
 const util = __nccwpck_require__(3440)
-const { ReadableStreamFrom } = __nccwpck_require__(3440)
 
 const kConsume = Symbol('kConsume')
 const kReading = Symbol('kReading')
@@ -12237,7 +12465,7 @@ class BodyReadable extends Readable {
    */
   get body () {
     if (!this[kBody]) {
-      this[kBody] = ReadableStreamFrom(this)
+      this[kBody] = ReadableStream.from(this)
       if (this[kConsume]) {
         // TODO: Is this the best way to force a lock?
         this[kBody].getReader() // Ensure stream is locked.
@@ -12701,7 +12929,7 @@ class MemoryCacheStore extends EventEmitter {
   }
 
   /**
-   * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} req
+   * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
    * @returns {import('../../types/cache-interceptor.d.ts').default.GetResult | undefined}
    */
   get (key) {
@@ -12793,7 +13021,7 @@ class MemoryCacheStore extends EventEmitter {
 
           // Perform eviction
           for (const [key, entries] of store.#entries) {
-            for (const entry of entries.splice(0, entries.length / 2)) {
+            for (const entry of entries.splice(0, Math.ceil(entries.length / 2))) {
               store.#size -= entry.size
               store.#count -= 1
             }
@@ -14808,9 +15036,21 @@ class Request {
     }
   }
 
-  onRequestUpgrade (statusCode, headers, socket) {
+  /**
+   * @param {number} statusCode
+   * @param {Buffer[]|string[]|import('../../types/header.d.ts').IncomingHttpHeaders} headers
+   * @param {import('node:stream').Duplex} socket
+   * @param {string} [statusText]
+   */
+  onRequestUpgrade (statusCode, headers, socket, statusText = '') {
+    this.onFinally()
+
     assert(!this.aborted)
     assert(!this.completed)
+
+    if (channels.headers.hasSubscribers) {
+      channels.headers.publish({ request: this, response: { statusCode, headers, statusText } })
+    }
 
     const controller = this[kController]
     if (controller) {
@@ -14819,7 +15059,16 @@ class Request {
 
     const parsedHeaders = Array.isArray(headers) ? parseHeaders(headers) : headers
 
-    return this[kHandler].onRequestUpgrade?.(controller, statusCode, parsedHeaders, socket)
+    const result = this[kHandler].onRequestUpgrade?.(controller, statusCode, parsedHeaders, socket)
+
+    if (!this.aborted) {
+      this.completed = true
+      if (channels.trailers.hasSubscribers) {
+        channels.trailers.publish({ request: this, trailers: [] })
+      }
+    }
+
+    return result
   }
 
   onResponseEnd (trailers) {
@@ -15646,6 +15895,8 @@ module.exports = {
   kDestroy: Symbol('destroy'),
   kDispatch: Symbol('dispatch'),
   kUrl: Symbol('url'),
+  kRequestOrigin: Symbol('request origin'),
+  kOriginless: Symbol('originless'),
   kWriting: Symbol('writing'),
   kResuming: Symbol('resuming'),
   kQueue: Symbol('queue'),
@@ -16537,44 +16788,6 @@ function getSocketInfo (socket) {
 }
 
 /**
- * @param {Iterable} iterable
- * @returns {ReadableStream}
- */
-function ReadableStreamFrom (iterable) {
-  // We cannot use ReadableStream.from here because it does not return a byte stream.
-
-  let iterator
-  return new ReadableStream(
-    {
-      start () {
-        iterator = iterable[Symbol.asyncIterator]()
-      },
-      pull (controller) {
-        return iterator.next().then(({ done, value }) => {
-          if (done) {
-            return queueMicrotask(() => {
-              controller.close()
-              controller.byobRequest?.respond(0)
-            })
-          } else {
-            const buf = Buffer.isBuffer(value) ? value : Buffer.from(value)
-            if (buf.byteLength) {
-              return controller.enqueue(new Uint8Array(buf))
-            } else {
-              return this.pull(controller)
-            }
-          }
-        })
-      },
-      cancel () {
-        return iterator.return()
-      },
-      type: 'bytes'
-    }
-  )
-}
-
-/**
  * The object should be a FormData instance and contains all the required
  * methods.
  * @param {*} object
@@ -16918,7 +17131,6 @@ module.exports = {
   destroy,
   bodyLength,
   deepClone,
-  ReadableStreamFrom,
   isBuffer,
   assertRequestHandler,
   getSocketInfo,
@@ -16949,7 +17161,7 @@ module.exports = {
 
 
 const { InvalidArgumentError, MaxOriginsReachedError } = __nccwpck_require__(8707)
-const { kBusy, kClients, kConnected, kRunning, kClose, kDestroy, kDispatch, kUrl } = __nccwpck_require__(6443)
+const { kBusy, kClients, kConnected, kRunning, kPending, kClose, kDestroy, kDispatch, kUrl } = __nccwpck_require__(6443)
 const DispatcherBase = __nccwpck_require__(1841)
 const Pool = __nccwpck_require__(628)
 const Client = __nccwpck_require__(3701)
@@ -17045,7 +17257,12 @@ class Agent extends DispatcherBase {
           return
         }
 
-        if (dispatcher[kConnected] > 0 || dispatcher[kBusy]) {
+        // A GOAWAY detaches the HTTP/2 session before requeued requests are
+        // dispatched on a replacement connection. At that point the pool has
+        // no connected clients and is not busy, but it still has pending work.
+        // Closing it here lets the replacement Client finish those requests
+        // and then destroys that new connection with ClientDestroyedError.
+        if (dispatcher[kConnected] > 0 || dispatcher[kBusy] || dispatcher[kPending] > 0) {
           return
         }
 
@@ -17140,7 +17357,7 @@ const {
   kGetDispatcher
 } = __nccwpck_require__(2128)
 const Pool = __nccwpck_require__(628)
-const { kUrl } = __nccwpck_require__(6443)
+const { kOriginless, kUrl } = __nccwpck_require__(6443)
 const util = __nccwpck_require__(3440)
 const kFactory = Symbol('factory')
 
@@ -17176,14 +17393,17 @@ function defaultFactory (origin, opts) {
 }
 
 class BalancedPool extends PoolBase {
-  constructor (upstreams = [], { factory = defaultFactory, ...opts } = {}) {
+  constructor (upstreams = [], { factory = defaultFactory, connect, tls, ...opts } = {}) {
     if (typeof factory !== 'function') {
       throw new InvalidArgumentError('factory must be a function.')
     }
 
-    super()
+    super(opts)
 
-    this[kOptions] = { ...util.deepClone(opts) }
+    this[kOriginless] = true
+    if (connect && typeof connect !== 'function') connect = { ...connect }
+    if (tls && typeof tls !== 'function') tls = { ...tls }
+    this[kOptions] = { ...util.deepClone(opts), connect, tls }
     this[kIndex] = -1
     this[kCurrentWeight] = 0
 
@@ -17418,8 +17638,14 @@ function lazyllhttp () {
 
   let mod
 
-  // We disable wasm SIMD on ppc64 as it seems to be broken on Power 9 architectures.
-  let useWasmSIMD = process.arch !== 'ppc64'
+  // We disable wasm SIMD on older versions of Node.js on ppc64 that are broken on Power >=9 architectures.
+  let useWasmSIMD = true
+  if (process.arch === 'ppc64') {
+    const [major, minor] = process.versions.node.split('.').map(n => parseInt(n, 10))
+    if (major < 24 || (major === 24 && minor < 12)) {
+      useWasmSIMD = false
+    }
+  }
   // The Env Variable UNDICI_NO_WASM_SIMD allows explicitly overriding the default behavior
   if (process.env.UNDICI_NO_WASM_SIMD === '1') {
     useWasmSIMD = false
@@ -17909,7 +18135,7 @@ class Parser {
    * @param {Buffer} head
    */
   onUpgrade (head) {
-    const { upgrade, client, socket, headers, statusCode } = this
+    const { upgrade, client, socket, headers, statusCode, statusText } = this
 
     assert(upgrade)
     assert(client[kSocket] === socket)
@@ -17944,8 +18170,9 @@ class Parser {
     client.emit('disconnect', client[kUrl], [client], new InformationalError('upgrade'))
 
     try {
-      request.onRequestUpgrade(statusCode, headers, socket)
+      request.onRequestUpgrade(statusCode, headers, socket, statusText)
     } catch (err) {
+      util.errorRequest(client, request, err)
       util.destroy(socket, err)
     }
 
@@ -18400,7 +18627,7 @@ function onSocketClose () {
 
 function clearIdleSocketValidation (socket) {
   if (socket[kIdleSocketValidationTimeout]) {
-    clearTimeout(socket[kIdleSocketValidationTimeout])
+    clearImmediate(socket[kIdleSocketValidationTimeout])
     socket[kIdleSocketValidationTimeout] = null
   }
 
@@ -18409,15 +18636,23 @@ function clearIdleSocketValidation (socket) {
 
 function scheduleIdleSocketValidation (client, socket) {
   socket[kIdleSocketValidation] = 1
-  socket[kIdleSocketValidationTimeout] = setTimeout(() => {
+  // Yield to the check phase (after poll) so unsolicited bytes / FIN / RST
+  // already pending on this idle keep-alive socket are processed before the
+  // next request is written (GHSA-35p6-xmwp-9g52).
+  //
+  // setTimeout(0) pays Node's ~1ms timer floor on every sequential reuse
+  // (#5493). setImmediate avoids that, but an *unref'd* Immediate lets poll
+  // block for ~500ms when the event loop is otherwise idle (#5600 / #5606).
+  // A ref'd Immediate both keeps the pending request alive and makes poll
+  // return immediately — the hybrid those issues asked for.
+  socket[kIdleSocketValidationTimeout] = setImmediate(() => {
     socket[kIdleSocketValidationTimeout] = null
     socket[kIdleSocketValidation] = 2
 
     if (client[kSocket] === socket && !socket.destroyed) {
       client[kResume]()
     }
-  }, 0)
-  socket[kIdleSocketValidationTimeout].unref?.()
+  })
 }
 
 /**
@@ -19153,12 +19388,14 @@ const { pipeline } = __nccwpck_require__(7075)
 const util = __nccwpck_require__(3440)
 const {
   RequestContentLengthMismatchError,
+  ResponseContentLengthMismatchError,
   RequestAbortedError,
   SocketError,
   InformationalError,
   InvalidArgumentError,
   HeadersTimeoutError,
-  BodyTimeoutError
+  BodyTimeoutError,
+  ResponseExceededMaxSizeError
 } = __nccwpck_require__(8707)
 const {
   kUrl,
@@ -19187,7 +19424,8 @@ const {
   kRemoteSettings,
   kHTTP2Stream,
   kHTTP2SessionState,
-  kHTTP2Options
+  kHTTP2Options,
+  kMaxResponseSize
 } = __nccwpck_require__(6443)
 const { channels } = __nccwpck_require__(2414)
 
@@ -19337,6 +19575,11 @@ function canReplayRequest (request) {
   const { body } = request
 
   return body == null || util.isBuffer(body) || util.isBlobLike(body)
+}
+
+function hasResponseStarted (request) {
+  const state = request[kRequestStream]?.[kRequestStreamState]
+  return state?.responseReceived === true
 }
 
 // Count a GOAWAY refusal against the request's replay budget. A peer that
@@ -19552,7 +19795,8 @@ function resumeH2 (client) {
   const session = client[kHTTP2Session]
 
   if (socket?.destroyed === false) {
-    if (client[kSize] === 0 || client[kMaxConcurrentStreams] === 0) {
+    // After an upgrade the queue is empty but its stream is still in use, so never unref while a stream is open.
+    if (session[kOpenStreams] === 0 && client[kSize] === 0) {
       unrefH2Session(session)
     } else {
       refH2Session(session)
@@ -19786,9 +20030,12 @@ function onHttp2SessionGoAway (errorCode, lastStreamID) {
     const request = client[kQueue][i]
 
     if (request != null) {
+      // Read before detaching, which drops the stream state.
+      const responseStarted = hasResponseStarted(request)
+
       streamsToClose.push(detachRequestStreamForClose(request))
 
-      if (canReplayRequest(request) && registerGoAwayRefusal(request)) {
+      if (!responseStarted && canReplayRequest(request) && registerGoAwayRefusal(request)) {
         retriableRequests.push(request)
       } else {
         util.errorRequest(client, request, err)
@@ -19916,10 +20163,12 @@ function noop () {}
 
 function closeStreamSession (stream) {
   const session = stream[kHTTP2Session]
+  const client = session[kClient]
 
   stream[kHTTP2Session] = null
   session[kOpenStreams] -= 1
-  if (session[kOpenStreams] === 0) {
+  // A session that received GOAWAY does not need to stay ref'd for queued requests.
+  if (session[kOpenStreams] === 0 && (client[kSize] === 0 || session[kReceivedGoAway])) {
     unrefH2Session(session)
     setHttp2IdleTimeout(session)
   }
@@ -20077,9 +20326,14 @@ function onUpgradeResponse (headers, _flags) {
   const statusCode = headers[HTTP2_HEADER_STATUS]
   delete headers[HTTP2_HEADER_STATUS]
 
-  request.onRequestUpgrade(statusCode, headers, stream)
+  try {
+    request.onRequestUpgrade(statusCode, headers, stream)
+  } catch (err) {
+    state.abort(err)
+    return
+  }
 
-  if (request.aborted || request.completed) {
+  if (request.aborted) {
     return
   }
 
@@ -20170,13 +20424,16 @@ function writeH2 (client, request) {
   const state = {
     abort: null,
     body: request.body,
+    bytesRead: 0,
     client,
     contentLength: null,
     expectsPayload: false,
+    maxResponseSize: client[kMaxResponseSize],
     request,
     headersTimeout,
     bodyTimeout,
     requestFinalized: false,
+    responseContentLength: null,
     responseReceived: false,
     bodySent: false,
     pendingEnd: false,
@@ -20408,6 +20665,7 @@ function writeH2 (client, request) {
   // become unreachable once the stream closes, so plain `on` avoids the
   // per-listener `once` wrapper allocation.
   stream.on('response', onResponse)
+  stream.on('headers', onInterimResponse)
   stream.on('end', onEnd)
   stream.on('error', onError)
   stream.on('frameError', onFrameError)
@@ -20428,6 +20686,7 @@ function removeRequestStreamListeners (stream) {
   stream.off('error', noop)
   stream.off('continue', writeBodyH2)
   stream.off('response', onResponse)
+  stream.off('headers', onInterimResponse)
   stream.off('end', onEnd)
   stream.off('error', onError)
   stream.off('frameError', onFrameError)
@@ -20470,15 +20729,54 @@ function onData (chunk) {
     return
   }
 
+  const { request, maxResponseSize, responseContentLength } = state
+
+  if (request.aborted || request.completed) {
+    return
+  }
+
+  if (responseContentLength != null && state.bytesRead + chunk.length > responseContentLength) {
+    state.abort(new ResponseContentLengthMismatchError())
+    return
+  }
+
+  if (maxResponseSize > -1 && state.bytesRead + chunk.length > maxResponseSize) {
+    // Unlike HTTP/1.1, which destroys the socket because it cannot abandon one
+    // response without losing framing, resetting the offending stream leaves
+    // the session usable for its siblings.
+    state.abort(new ResponseExceededMaxSizeError())
+    return
+  }
+
+  state.bytesRead += chunk.length
+
+  if (request.onResponseData(chunk) === false) {
+    stream.pause()
+  }
+}
+
+function onInterimResponse (headers) {
+  const stream = this
+  const state = stream[kRequestStreamState]
+
+  if (state == null) {
+    return
+  }
+
   const { request } = state
 
   if (request.aborted || request.completed) {
     return
   }
 
-  if (request.onResponseData(chunk) === false) {
-    stream.pause()
-  }
+  // node http2 emits 'headers' for interim (1xx) informational responses,
+  // while the final response arrives via 'response'. Forward these to the
+  // handler so that onInfo is invoked, matching the HTTP/1 behaviour and the
+  // documented onInfo contract.
+  const statusCode = headers[HTTP2_HEADER_STATUS]
+  delete headers[HTTP2_HEADER_STATUS]
+
+  request.onResponseStart(Number(statusCode), headers, noop, '')
 }
 
 function onResponse (headers) {
@@ -20500,10 +20798,19 @@ function onResponse (headers) {
     stream.end()
   }
 
-  const statusCode = headers[HTTP2_HEADER_STATUS]
+  const statusCode = Number(headers[HTTP2_HEADER_STATUS])
   delete headers[HTTP2_HEADER_STATUS]
   request.onResponseStarted()
   state.responseReceived = true
+
+  // A Content-Length in HEAD and 304 responses describes the selected
+  // representation rather than DATA on this stream. Successful CONNECT uses
+  // the upgrade path above; all other final responses use Content-Length as
+  // their DATA payload length.
+  if (request.method !== 'HEAD' && statusCode !== 304) {
+    const contentLength = headers[HTTP2_HEADER_CONTENT_LENGTH]
+    state.responseContentLength = contentLength == null ? null : Number(contentLength)
+  }
 
   if (state.headersTimeout || state.bodyTimeout) {
     stream.setTimeout(state.bodyTimeout)
@@ -20522,7 +20829,7 @@ function onResponse (headers) {
     return
   }
 
-  if (request.onResponseStart(Number(statusCode), headers, stream.resume.bind(stream), '') === false) {
+  if (request.onResponseStart(statusCode, headers, stream.resume.bind(stream), '') === false) {
     stream.pause()
   }
 
@@ -20545,6 +20852,11 @@ function onEnd () {
   // trailers on the state by now, so completing here still delivers them.
   if (state.responseReceived) {
     if (!request.aborted && !request.completed) {
+      if (state.responseContentLength != null && state.bytesRead !== state.responseContentLength) {
+        state.abort(new ResponseContentLengthMismatchError())
+        return
+      }
+
       state.pendingEnd = true
 
       // Complete on 'end': a blocked event loop can keep the stream's 'close'
@@ -20600,6 +20912,13 @@ function onError (err) {
   }
 
   stream.off('error', onError)
+
+  // Node's HTTP/2 implementation can turn an incomplete Content-Length body
+  // into a protocol stream error instead of emitting 'end'. Prefer the
+  // content-length mismatch error when the received byte count proves it.
+  if (state.responseContentLength != null && state.bytesRead !== state.responseContentLength) {
+    err = new ResponseContentLengthMismatchError()
+  }
 
   if (typeof stream.rstCode === 'number' && stream.rstCode !== NGHTTP2_NO_ERROR) {
     err.http2ErrorCode = stream.rstCode
@@ -21033,7 +21352,8 @@ class Client extends DispatcherBase {
     connectionWindowSize,
     pingInterval,
     webSocket,
-    h2Options
+    h2Options,
+    eventSource
   } = {}) {
     if (keepAlive !== undefined) {
       throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -21133,7 +21453,7 @@ class Client extends DispatcherBase {
           throw new InvalidArgumentError('h2Options.settings.initialWindowSize must be a positive integer, greater than 0')
         }
 
-        if (h2Options.maxConcurrentStreams != null && (!Number.isInteger(h2Options.connectionWindowSize) || h2Options.maxConcurrentStreams < 1)) {
+        if (h2Options.maxConcurrentStreams != null && (!Number.isInteger(h2Options.maxConcurrentStreams) || h2Options.maxConcurrentStreams < 1)) {
           throw new InvalidArgumentError('h2Options.maxConcurrentStreams must be a positive integer, greater than 0')
         }
 
@@ -21172,7 +21492,7 @@ class Client extends DispatcherBase {
       }
     }
 
-    super({ webSocket })
+    super({ webSocket, eventSource })
 
     if (typeof connect !== 'function') {
       connect = buildConnector({
@@ -21595,6 +21915,11 @@ function _resume (client, sync) {
       return
     }
 
+    if (request.aborted) {
+      client[kQueue].splice(client[kPendingIdx], 1)
+      continue
+    }
+
     if (client[kUrl].protocol === 'https:' && client[kServerName] !== request.servername) {
       if (client[kRunning] > 0) {
         return
@@ -21643,6 +21968,7 @@ module.exports = Client
 
 
 
+const buffer = __nccwpck_require__(4573)
 const Dispatcher = __nccwpck_require__(883)
 const {
   ClientDestroyedError,
@@ -21654,6 +21980,7 @@ const { kDestroy, kClose, kClosed, kDestroyed, kDispatch } = __nccwpck_require__
 const kOnDestroyed = Symbol('onDestroyed')
 const kOnClosed = Symbol('onClosed')
 const kWebSocketOptions = Symbol('webSocketOptions')
+const kEventSourceOptions = Symbol('eventSourceOptions')
 
 class DispatcherBase extends Dispatcher {
   /** @type {boolean} */
@@ -21674,15 +22001,25 @@ class DispatcherBase extends Dispatcher {
   constructor (opts) {
     super()
     this[kWebSocketOptions] = opts?.webSocket ?? {}
+    this[kEventSourceOptions] = opts?.eventSource ?? {}
   }
 
   /**
-   * @returns {import('../../types/dispatcher').WebSocketOptions}
+   * @returns {import('../../types/client').Client.WebSocketOptions}
    */
   get webSocketOptions () {
     return {
       maxFragments: this[kWebSocketOptions].maxFragments ?? 131072,
       maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024 // 128 MB default
+    }
+  }
+
+  /**
+   * @returns {import('../../types/client').Client.EventSourceOptions}
+   */
+  get eventSourceOptions () {
+    return {
+      maxEventSize: this[kEventSourceOptions].maxEventSize ?? buffer.kStringMaxLength
     }
   }
 
@@ -21835,6 +22172,7 @@ module.exports = DispatcherBase
 
 
 const EventEmitter = __nccwpck_require__(8474)
+const { kOriginless, kUrl } = __nccwpck_require__(6443)
 
 class Dispatcher extends EventEmitter {
   dispatch () {
@@ -21852,6 +22190,10 @@ class Dispatcher extends EventEmitter {
   compose (...args) {
     // So we handle [interceptor1, interceptor2] or interceptor1, interceptor2, ...
     const interceptors = Array.isArray(args[0]) ? args[0] : args
+    // null disables origin-dependent interceptors; undefined uses opts.origin.
+    const interceptorOrigin = this[kOriginless] === true
+      ? null
+      : this[kUrl]?.origin
     let dispatch = this.dispatch.bind(this)
 
     for (const interceptor of interceptors) {
@@ -21863,11 +22205,20 @@ class Dispatcher extends EventEmitter {
         throw new TypeError(`invalid interceptor, expected function received ${typeof interceptor}`)
       }
 
-      dispatch = interceptor(dispatch)
+      dispatch = interceptor(dispatch, interceptorOrigin)
 
       if (dispatch == null || typeof dispatch !== 'function' || dispatch.length !== 2) {
         throw new TypeError('invalid interceptor')
       }
+    }
+
+    const originalDispatch = dispatch
+    const self = this
+    dispatch = function (opts, handler) {
+      if (opts && typeof opts === 'object' && !opts.origin && self[kUrl]) {
+        opts = Object.assign({}, opts, { origin: self[kUrl].origin })
+      }
+      return originalDispatch(opts, handler)
     }
 
     return new Proxy(this, {
@@ -21889,6 +22240,7 @@ module.exports = Dispatcher
 const Dispatcher = __nccwpck_require__(883)
 const { InvalidArgumentError } = __nccwpck_require__(8707)
 const { toRawHeaders } = __nccwpck_require__(3440)
+const { kOriginless, kUrl } = __nccwpck_require__(6443)
 
 class LegacyHandlerWrapper {
   #handler
@@ -21957,6 +22309,8 @@ class Dispatcher1Wrapper extends Dispatcher {
     }
 
     this.#dispatcher = dispatcher
+    this[kUrl] = dispatcher[kUrl]
+    this[kOriginless] = dispatcher[kOriginless]
   }
 
   static wrapHandler (handler) {
@@ -22016,7 +22370,7 @@ class EnvHttpProxyAgent extends DispatcherBase {
   #opts = null
 
   constructor (opts = {}) {
-    super()
+    super(opts)
     this.#opts = opts
 
     const { httpProxy, httpsProxy, noProxy, ...agentOpts } = opts
@@ -22069,6 +22423,13 @@ class EnvHttpProxyAgent extends DispatcherBase {
     // brackets from IPv6 literals (e.g. "[::1]" -> "::1") so that the
     // result matches the unbracketed form stored by #parseNoProxy.
     hostname = hostname.replace(/:\d*$/, '').replace(/^\[(.+)\]$/, '$1').toLowerCase()
+    // Drop a trailing dot: it only marks the fully qualified form of a domain
+    // name ("example.com." and "example.com" are the same name, RFC 1034 root
+    // label). This runs on every dispatch, so it is a charCode check rather
+    // than a third regex. `length > 1` leaves the degenerate host "." alone.
+    if (hostname.length > 1 && hostname.charCodeAt(hostname.length - 1) === 46) {
+      hostname = hostname.slice(0, -1)
+    }
     port = Number.parseInt(port, 10) || DEFAULT_PORTS[protocol] || 0
     if (!this.#shouldProxy(hostname, port)) {
       return this[kNoProxyAgent]
@@ -22087,17 +22448,25 @@ class EnvHttpProxyAgent extends DispatcherBase {
     if (this.#noProxyEntries.length === 0) {
       return true // Always proxy if NO_PROXY is not set or empty.
     }
-    if (this.#noProxyValue === '*') {
-      return false // Never proxy if wildcard is set.
-    }
 
     for (let i = 0; i < this.#noProxyEntries.length; i++) {
       const entry = this.#noProxyEntries[i]
+      // A bare `*` entry matches all hosts regardless of its position or the
+      // surrounding whitespace (e.g. ` * ` or `none.invalid,*`). If a port is
+      // attached (`*:80`) it only bypasses that port.
+      if (entry.hostname === '*') {
+        if (entry.port && entry.port !== port) {
+          continue
+        }
+        return false // Never proxy if a wildcard entry is present.
+      }
       if (entry.port && entry.port !== port) {
         continue // Skip if ports don't match.
       }
-      // Don't proxy if the hostname is equal with the no_proxy host.
-      if (hostname === entry.hostname) {
+      // Don't proxy if the hostname is equal with the no_proxy host. A
+      // `*.example.com` wildcard matches subdomains only, not the apex
+      // `example.com`, so exact matches are skipped for wildcard entries.
+      if (!entry.wildcard && hostname === entry.hostname) {
         return false
       }
       // Don't proxy if the hostname is the subdomain of the no_proxy host.
@@ -22142,10 +22511,17 @@ class EnvHttpProxyAgent extends DispatcherBase {
         port = parsed ? Number.parseInt(parsed[2], 10) : 0
       }
 
+      // A leading `*` marks a subdomain wildcard (`*.example.com`), distinct
+      // from a plain or leading-dot suffix (`example.com` / `.example.com`)
+      // which also matches the apex. `*.example.com` must only match
+      // subdomains, never the apex `example.com` itself.
+      const wildcard = entry.charCodeAt(0) === 42 /* '*' */
+
       noProxyEntries.push({
-        // strip leading dot or asterisk with dot
-        hostname: hostname.replace(/^\*?\./, '').toLowerCase(),
-        port
+        // strip leading dot or asterisk with dot, and any trailing dot
+        hostname: hostname.replace(/^\*?\./, '').replace(/^(.+)\.$/, '$1').toLowerCase(),
+        port,
+        wildcard
       })
     }
 
@@ -22388,6 +22764,9 @@ const kOnDrain = Symbol('onDrain')
 const kOnConnect = Symbol('onConnect')
 const kOnDisconnect = Symbol('onDisconnect')
 const kOnConnectionError = Symbol('onConnectionError')
+const kOnClientBusy = Symbol('on client busy')
+const kOnClientDrain = Symbol('on client drain')
+const kDrainQueue = Symbol('drain queue')
 const kGetDispatcher = Symbol('get dispatcher')
 const kHasDispatcher = Symbol('has dispatcher')
 const kAddClient = Symbol('add client')
@@ -22403,9 +22782,14 @@ class PoolBase extends DispatcherBase {
   [kNeedDrain] = false;
 
   [kOnDrain] (client, origin, targets) {
-    const queue = this[kQueue]
+    if (client.closed || client.destroyed) {
+      return
+    }
 
+    const queue = this[kQueue]
     let needDrain = false
+
+    this[kOnClientDrain](client)
 
     while (!needDrain) {
       const item = queue.shift()
@@ -22417,8 +22801,57 @@ class PoolBase extends DispatcherBase {
     }
 
     client[kNeedDrain] = needDrain
+    if (needDrain) {
+      this[kOnClientBusy](client)
+    }
 
     if (!needDrain && this[kNeedDrain]) {
+      this[kNeedDrain] = false
+      this.emit('drain', origin, [this, ...targets])
+    }
+
+    if (this[kClosedResolve] && queue.isEmpty()) {
+      const closeAll = []
+      for (let i = 0; i < this[kClients].length; i++) {
+        const client = this[kClients][i]
+        if (!client.destroyed) {
+          closeAll.push(client.close())
+        }
+      }
+      return Promise.all(closeAll)
+        .then(this[kClosedResolve])
+    }
+  }
+
+  [kOnClientBusy] () {}
+
+  [kOnClientDrain] () {}
+
+  [kDrainQueue] (origin, targets) {
+    const queue = this[kQueue]
+    let hasDispatcher = true
+
+    while (!queue.isEmpty()) {
+      const dispatcher = this[kGetDispatcher]()
+      if (!dispatcher) {
+        hasDispatcher = false
+        break
+      }
+
+      const item = queue.shift()
+      this[kQueued]--
+
+      if (!dispatcher.dispatch(item.opts, item.handler)) {
+        dispatcher[kNeedDrain] = true
+        this[kOnClientBusy](dispatcher)
+        hasDispatcher = this[kHasDispatcher]()
+        if (!hasDispatcher) {
+          break
+        }
+      }
+    }
+
+    if (hasDispatcher && this[kNeedDrain]) {
       this[kNeedDrain] = false
       this.emit('drain', origin, [this, ...targets])
     }
@@ -22538,6 +22971,7 @@ class PoolBase extends DispatcherBase {
       this[kQueued]++
     } else if (!dispatcher.dispatch(opts, handler)) {
       dispatcher[kNeedDrain] = true
+      this[kOnClientBusy](dispatcher)
       this[kNeedDrain] = !this[kHasDispatcher]()
     }
 
@@ -22571,7 +23005,7 @@ class PoolBase extends DispatcherBase {
 
     if (this[kNeedDrain]) {
       queueMicrotask(() => {
-        if (this[kNeedDrain]) {
+        if (this[kNeedDrain] && !client[kNeedDrain]) {
           this[kOnDrain](client, client[kUrl], [client, this])
         }
       })
@@ -22602,6 +23036,9 @@ module.exports = {
   kNeedDrain,
   kAddClient,
   kRemoveClient,
+  kDrainQueue,
+  kOnClientBusy,
+  kOnClientDrain,
   kGetDispatcher,
   kHasDispatcher
 }
@@ -22619,6 +23056,9 @@ const {
   kClients,
   kNeedDrain,
   kAddClient,
+  kDrainQueue,
+  kOnClientBusy,
+  kOnClientDrain,
   kGetDispatcher,
   kHasDispatcher,
   kRemoveClient
@@ -22628,15 +23068,39 @@ const {
   InvalidArgumentError
 } = __nccwpck_require__(8707)
 const util = __nccwpck_require__(3440)
-const { kUrl } = __nccwpck_require__(6443)
+const { kConnecting, kHTTPContext, kUrl } = __nccwpck_require__(6443)
 const buildConnector = __nccwpck_require__(9136)
 
 const kOptions = Symbol('options')
 const kConnections = Symbol('connections')
 const kFactory = Symbol('factory')
+const kProtocol = Symbol('protocol')
+const kProtocolProbe = Symbol('protocol probe')
 
 function defaultFactory (origin, opts) {
   return new Client(origin, opts)
+}
+
+function shouldCreateProtocolProbe (pool, dispatcher) {
+  return dispatcher instanceof Client &&
+    pool[kProtocol] !== 'h1' &&
+    (pool[kOptions].useH2c === true || (pool[kUrl].protocol === 'https:' && pool[kOptions].allowH2 !== false))
+}
+
+function createClient (pool) {
+  const dispatcher = pool[kFactory](pool[kUrl], pool[kOptions])
+
+  // HTTPS does not reveal whether the peer selected h1 or h2 until ALPN
+  // completes. While h2 is still possible, let one Client probe the protocol
+  // and keep later requests in the Pool queue instead of opening one TLS
+  // connection per request. A confirmed h1 connection disables this gate and
+  // restores the usual Pool fan-out.
+  if (shouldCreateProtocolProbe(pool, dispatcher)) {
+    pool[kProtocolProbe] = dispatcher
+  }
+
+  pool[kAddClient](dispatcher)
+  return dispatcher
 }
 
 class Pool extends PoolBase {
@@ -22686,6 +23150,8 @@ class Pool extends PoolBase {
     this[kUrl] = util.parseOrigin(origin)
     this[kOptions] = { ...util.deepClone(options), connect, allowH2, useH2c, clientTtl, socketPath }
     this[kFactory] = factory
+    this[kProtocol] = null
+    this[kProtocolProbe] = null
 
     this.on('connect', (origin, targets) => {
       if (clientTtl != null && clientTtl > 0) {
@@ -22693,13 +23159,42 @@ class Pool extends PoolBase {
           Object.assign(target, { ttl: Date.now() })
         }
       }
+
+      const client = targets[targets.length - 1]
+      if (client instanceof Client) {
+        this[kProtocol] = client[kHTTPContext]?.version
+      }
+
+      if (client === this[kProtocolProbe]) {
+        // An h2 Client's drain event releases the requests accumulated during
+        // negotiation onto that Client. If ALPN selected h1, release the probe
+        // immediately and restore normal Pool fan-out instead.
+        if (this[kProtocol] !== 'h2') {
+          this[kProtocolProbe] = null
+          this[kDrainQueue](origin, targets.slice(1))
+        }
+      }
     })
 
-    this.on('connectionError', (origin, targets, error) => {
+    this.on('disconnect', (origin, targets) => {
+      if (targets.includes(this[kProtocolProbe])) {
+        this[kProtocolProbe] = null
+        this[kDrainQueue](origin, targets.slice(1))
+      }
+    })
+
+    this.on('connectionError', (origin, targets) => {
+      let resumeQueued = false
+
       // If a connection error occurs, we remove the client from the pool,
       // and emit a connectionError event. They will not be re-used.
       // Fixes https://github.com/nodejs/undici/issues/3895
       for (const target of targets) {
+        if (target === this[kProtocolProbe]) {
+          this[kProtocolProbe] = null
+          resumeQueued = true
+        }
+
         // Do not use kRemoveClient here, as it will close the client,
         // but the client cannot be closed in this state.
         const idx = this[kClients].indexOf(target)
@@ -22707,7 +23202,27 @@ class Pool extends PoolBase {
           this[kClients].splice(idx, 1)
         }
       }
+
+      if (resumeQueued) {
+        this[kDrainQueue](origin, targets.slice(1))
+      }
     })
+  }
+
+  [kOnClientBusy] (client) {
+    if (
+      this[kProtocolProbe] === null &&
+      client[kConnecting] &&
+      shouldCreateProtocolProbe(this, client)
+    ) {
+      this[kProtocolProbe] = client
+    }
+  }
+
+  [kOnClientDrain] (client) {
+    if (client === this[kProtocolProbe]) {
+      this[kProtocolProbe] = null
+    }
   }
 
   [kGetDispatcher] () {
@@ -22724,10 +23239,12 @@ class Pool extends PoolBase {
       }
     }
 
+    if (this[kProtocolProbe] !== null) {
+      return
+    }
+
     if (!this[kConnections] || this[kClients].length < this[kConnections]) {
-      const dispatcher = this[kFactory](this[kUrl], this[kOptions])
-      this[kAddClient](dispatcher)
-      return dispatcher
+      return createClient(this)
     }
   }
 
@@ -22744,9 +23261,12 @@ class Pool extends PoolBase {
       }
     }
 
+    if (this[kProtocolProbe] !== null) {
+      return false
+    }
+
     if (!this[kConnections] || this[kClients].length < this[kConnections]) {
-      const dispatcher = this[kFactory](this[kUrl], this[kOptions])
-      this[kAddClient](dispatcher)
+      createClient(this)
       return true
     }
 
@@ -22773,6 +23293,7 @@ const buildConnector = __nccwpck_require__(9136)
 const Client = __nccwpck_require__(3701)
 const { channels } = __nccwpck_require__(2414)
 const Socks5ProxyAgent = __nccwpck_require__(7223)
+const { hasSafeIterator } = __nccwpck_require__(3440)
 
 const kAgent = Symbol('proxy agent')
 const kClient = Symbol('proxy client')
@@ -22884,7 +23405,7 @@ class ProxyAgent extends DispatcherBase {
 
     const { proxyTunnel, connectTimeout } = opts
 
-    super()
+    super(opts)
 
     const url = this.#getUrl(opts)
     const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url
@@ -22925,6 +23446,7 @@ class ProxyAgent extends DispatcherBase {
           factory: agentFactory,
           username: opts.username || username,
           password: opts.password || password,
+          connectTimeout,
           proxyTls: opts.proxyTls,
           requestTls: opts.requestTls
         })
@@ -23087,8 +23609,8 @@ class ProxyAgent extends DispatcherBase {
 }
 
 /**
- * @param {string[] | Record<string, string>} headers
- * @returns {Record<string, string>}
+ * @param {string[] | Record<string, string> | Iterable<[string, string | string[] | undefined]>} headers
+ * @returns {Record<string, string | string[] | undefined>}
  */
 function buildHeaders (headers) {
   // When using undici.fetch, the headers list is stored
@@ -23103,6 +23625,34 @@ function buildHeaders (headers) {
       }
 
       headersPair[headers[i]] = headers[i + 1]
+    }
+
+    return headersPair
+  }
+
+  // Materialize iterable header containers (e.g. Map, Headers) into a record so
+  // that throwIfProxyAuthIsSent() can inspect their entries. Object.keys and
+  // for...in see nothing on a Map/Headers instance, so without this the
+  // Proxy-Authorization guard is bypassed and proxy credentials can reach the
+  // origin server (GHSA-6cv7-626c-qhqw).
+  if (headers && typeof headers === 'object' && hasSafeIterator(headers)) {
+    const headersPair = {}
+
+    for (const [key, value] of headers) {
+      if (!Object.hasOwn(headersPair, key)) {
+        headersPair[key] = value
+        continue
+      }
+
+      const previous = headersPair[key]
+      const values = []
+      if (previous !== undefined) {
+        values.push(...(Array.isArray(previous) ? previous : [previous]))
+      }
+      if (value !== undefined) {
+        values.push(...(Array.isArray(value) ? value : [value]))
+      }
+      headersPair[key] = values.length > 1 ? values : values[0]
     }
 
     return headersPair
@@ -23151,6 +23701,7 @@ module.exports = ProxyAgent
 
 const Dispatcher = __nccwpck_require__(883)
 const RetryHandler = __nccwpck_require__(7816)
+const { kOriginless, kUrl } = __nccwpck_require__(6443)
 
 class RetryAgent extends Dispatcher {
   #agent = null
@@ -23159,6 +23710,8 @@ class RetryAgent extends Dispatcher {
     super(options)
     this.#agent = agent
     this.#options = options
+    this[kUrl] = agent[kUrl]
+    this[kOriginless] = agent[kOriginless]
   }
 
   dispatch (opts, handler) {
@@ -23256,7 +23809,7 @@ class RoundRobinPool extends PoolBase {
       })
     }
 
-    super()
+    super(options)
 
     this[kConnections] = connections || null
     this[kUrl] = util.parseOrigin(origin)
@@ -23361,14 +23914,17 @@ const { URL } = __nccwpck_require__(3136)
 
 let tls // include tls conditionally since it is not always available
 const DispatcherBase = __nccwpck_require__(1841)
-const { InvalidArgumentError } = __nccwpck_require__(8707)
+const { ConnectTimeoutError, InvalidArgumentError } = __nccwpck_require__(8707)
 const { Socks5Client, STATES } = __nccwpck_require__(8082)
 const { kBusy, kConnected, kDispatch, kClose, kDestroy } = __nccwpck_require__(6443)
 const Pool = __nccwpck_require__(628)
 const buildConnector = __nccwpck_require__(9136)
+const { setupConnectTimeout } = __nccwpck_require__(3440)
 const { debuglog } = __nccwpck_require__(7975)
 
 const debug = debuglog('undici:socks5-proxy')
+
+const DEFAULT_SOCKS5_CONNECT_TIMEOUT = 5000
 
 const kProxyUrl = Symbol('proxy url')
 const kProxyHeaders = Symbol('proxy headers')
@@ -23376,7 +23932,15 @@ const kProxyAuth = Symbol('proxy auth')
 const kProxyProtocol = Symbol('proxy protocol')
 const kPools = Symbol('pools')
 const kConnector = Symbol('connector')
+const kConnectTimeout = Symbol('connect timeout')
 const kRequestTls = Symbol('request tls settings')
+const kRequestTlsTimeout = Symbol('request tls timeout')
+
+function createConnectTimeoutError (hostname, port, timeout) {
+  return new ConnectTimeoutError(
+    `Connect Timeout Error (attempted address: ${hostname}:${port}, timeout: ${timeout}ms)`
+  )
+}
 
 // Static flag to ensure warning is only emitted once per process
 let experimentalWarningEmitted = false
@@ -23386,7 +23950,7 @@ let experimentalWarningEmitted = false
  */
 class Socks5ProxyAgent extends DispatcherBase {
   constructor (proxyUrl, options = {}) {
-    super()
+    super(options)
 
     // Emit experimental warning only once
     if (!experimentalWarningEmitted) {
@@ -23411,7 +23975,20 @@ class Socks5ProxyAgent extends DispatcherBase {
     this[kProxyUrl] = url
     this[kProxyHeaders] = options.headers || {}
     this[kProxyProtocol] = options.proxyTls ? 'https:' : 'http:'
-    this[kRequestTls] = options.requestTls
+
+    const connectTimeout = options.connectTimeout ?? DEFAULT_SOCKS5_CONNECT_TIMEOUT
+    if (!Number.isFinite(connectTimeout) || connectTimeout < 0) {
+      throw new InvalidArgumentError('invalid connectTimeout')
+    }
+    this[kConnectTimeout] = connectTimeout
+
+    const { timeout, ...requestTls } = options.requestTls || {}
+    const requestTlsTimeout = timeout ?? connectTimeout
+    if (!Number.isFinite(requestTlsTimeout) || requestTlsTimeout < 0) {
+      throw new InvalidArgumentError('invalid requestTls.timeout')
+    }
+    this[kRequestTls] = requestTls
+    this[kRequestTlsTimeout] = requestTlsTimeout
 
     // Extract auth from URL or options
     this[kProxyAuth] = {
@@ -23420,8 +23997,13 @@ class Socks5ProxyAgent extends DispatcherBase {
     }
 
     // Create connector for proxy connection
+    const proxyTlsTimeout = options.proxyTls?.timeout ?? connectTimeout
+    if (!Number.isFinite(proxyTlsTimeout) || proxyTlsTimeout < 0) {
+      throw new InvalidArgumentError('invalid proxyTls.timeout')
+    }
     this[kConnector] = options.connect || buildConnector({
       ...options.proxyTls,
+      timeout: proxyTlsTimeout,
       servername: options.proxyTls?.servername || url.hostname
     })
 
@@ -23470,20 +24052,29 @@ class Socks5ProxyAgent extends DispatcherBase {
 
     // Wait for authentication (if required)
     const authenticationReady = Promise.withResolvers()
+    const authenticationTimeout = this[kConnectTimeout] === 0
+      ? null
+      : setTimeout(() => {
+        cleanupAuthenticationListeners()
+        socks5Client.destroy()
+        authenticationReady.reject(
+          createConnectTimeoutError(proxyHost, proxyPort, this[kConnectTimeout])
+        )
+      }, this[kConnectTimeout])
 
-    const authenticationTimeout = setTimeout(() => {
-      authenticationReady.reject(new Error('SOCKS5 authentication timeout'))
-    }, 5000)
+    const cleanupAuthenticationListeners = () => {
+      clearTimeout(authenticationTimeout)
+      socks5Client.removeListener('authenticated', onAuthenticated)
+      socks5Client.removeListener('error', onAuthenticationError)
+    }
 
     const onAuthenticated = () => {
-      clearTimeout(authenticationTimeout)
-      socks5Client.removeListener('error', onAuthenticationError)
+      cleanupAuthenticationListeners()
       authenticationReady.resolve()
     }
 
     const onAuthenticationError = (err) => {
-      clearTimeout(authenticationTimeout)
-      socks5Client.removeListener('authenticated', onAuthenticated)
+      cleanupAuthenticationListeners()
       authenticationReady.reject(err)
     }
 
@@ -23503,21 +24094,30 @@ class Socks5ProxyAgent extends DispatcherBase {
 
     // Wait for connection
     const connectionReady = Promise.withResolvers()
+    const connectionTimeout = this[kConnectTimeout] === 0
+      ? null
+      : setTimeout(() => {
+        cleanupConnectionListeners()
+        socks5Client.destroy()
+        connectionReady.reject(
+          createConnectTimeoutError(targetHost, targetPort, this[kConnectTimeout])
+        )
+      }, this[kConnectTimeout])
 
-    const connectionTimeout = setTimeout(() => {
-      connectionReady.reject(new Error('SOCKS5 connection timeout'))
-    }, 5000)
+    const cleanupConnectionListeners = () => {
+      clearTimeout(connectionTimeout)
+      socks5Client.removeListener('connected', onConnected)
+      socks5Client.removeListener('error', onConnectionError)
+    }
 
     const onConnected = (info) => {
       debug('SOCKS5 tunnel established to', targetHost, targetPort, 'via', info)
-      clearTimeout(connectionTimeout)
-      socks5Client.removeListener('error', onConnectionError)
+      cleanupConnectionListeners()
       connectionReady.resolve()
     }
 
     const onConnectionError = (err) => {
-      clearTimeout(connectionTimeout)
-      socks5Client.removeListener('connected', onConnected)
+      cleanupConnectionListeners()
       connectionReady.reject(err)
     }
 
@@ -23570,8 +24170,31 @@ class Socks5ProxyAgent extends DispatcherBase {
                 })
 
                 const tlsReady = Promise.withResolvers()
-                finalSocket.once('secureConnect', tlsReady.resolve)
-                finalSocket.once('error', tlsReady.reject)
+
+                const cleanupTlsListeners = () => {
+                  queueMicrotask(clearTlsTimeout)
+                  finalSocket.removeListener('secureConnect', onSecureConnect)
+                  finalSocket.removeListener('error', onTlsError)
+                }
+
+                const onSecureConnect = () => {
+                  cleanupTlsListeners()
+                  tlsReady.resolve()
+                }
+
+                const onTlsError = (err) => {
+                  cleanupTlsListeners()
+                  tlsReady.reject(err)
+                }
+
+                const clearTlsTimeout = setupConnectTimeout(new WeakRef(finalSocket), {
+                  timeout: this[kRequestTlsTimeout],
+                  hostname: targetHost,
+                  port: targetPort
+                })
+
+                finalSocket.once('secureConnect', onSecureConnect)
+                finalSocket.once('error', onTlsError)
                 await tlsReady.promise
               }
 
@@ -23946,6 +24569,14 @@ class CacheHandler {
     this.#handler.onRequestStart?.(controller, context)
   }
 
+  onBodySent (chunk) {
+    this.#handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.#handler.onRequestSent?.()
+  }
+
   onRequestUpgrade (controller, statusCode, headers, socket) {
     this.#handler.onRequestUpgrade?.(controller, statusCode, headers, socket)
   }
@@ -23983,6 +24614,13 @@ class CacheHandler {
     }
 
     const cacheControlHeader = resHeaders['cache-control']
+    const cacheControlDirectives = cacheControlHeader ? parseCacheControlHeader(cacheControlHeader) : {}
+
+    if (revalidationResponseDisallowsCachedReuse(this.#cacheType, resHeaders, cacheControlDirectives)) {
+      deleteCachedValue(this.#store, this.#cacheKey)
+      return downstreamOnHeaders()
+    }
+
     const heuristicallyCacheable = resHeaders['last-modified'] && arrayIncludes(HEURISTICALLY_CACHEABLE_STATUS_CODES, statusCode)
     if (
       !cacheControlHeader &&
@@ -23999,8 +24637,7 @@ class CacheHandler {
       return downstreamOnHeaders()
     }
 
-    const cacheControlDirectives = cacheControlHeader ? parseCacheControlHeader(cacheControlHeader) : {}
-    if (!canCacheResponse(this.#cacheType, statusCode, resHeaders, cacheControlDirectives, this.#cacheKey.headers)) {
+    if (!canCacheResponse(this.#cacheType, this.#cacheKey.method, statusCode, resHeaders, cacheControlDirectives, this.#cacheKey.headers)) {
       if (statusCode === 304 && (cacheControlHeader || revalidationResponseDisallowsCachedReuse(this.#cacheType, resHeaders, cacheControlDirectives))) {
         deleteCachedValue(this.#store, this.#cacheKey)
       }
@@ -24249,7 +24886,10 @@ function deleteCachedValueIfNotModified (statusCode, store, cacheKey) {
  */
 function revalidationResponseDisallowsCachedReuse (cacheType, resHeaders, cacheControlDirectives) {
   return cacheControlDirectives['no-store'] === true ||
-    (cacheType === 'shared' && cacheControlDirectives.private === true) ||
+    (cacheType === 'shared' && (
+      cacheControlDirectives.private === true ||
+      Object.hasOwn(resHeaders, 'set-cookie')
+    )) ||
     (resHeaders.vary ? isInvalidOrWildcardVaryHeader(resHeaders.vary) : false)
 }
 
@@ -24257,12 +24897,16 @@ function revalidationResponseDisallowsCachedReuse (cacheType, resHeaders, cacheC
  * @see https://www.rfc-editor.org/rfc/rfc9111.html#name-storing-responses-to-authen
  *
  * @param {import('../../types/cache-interceptor.d.ts').default.CacheOptions['type']} cacheType
+ * @param {string} method
  * @param {number} statusCode
  * @param {import('../../types/header.d.ts').IncomingHttpHeaders} resHeaders
  * @param {import('../../types/cache-interceptor.d.ts').default.CacheControlDirectives} cacheControlDirectives
  * @param {import('../../types/header.d.ts').IncomingHttpHeaders} [reqHeaders]
  */
-function canCacheResponse (cacheType, statusCode, resHeaders, cacheControlDirectives, reqHeaders) {
+function canCacheResponse (cacheType, method, statusCode, resHeaders, cacheControlDirectives, reqHeaders) {
+  if (!arrayIncludes(util.safeHTTPMethods, method)) {
+    return false
+  }
   // Status code must be final and understood.
   if (statusCode < 200 || arrayIncludes(NOT_UNDERSTOOD_STATUS_CODES, statusCode)) {
     return false
@@ -24283,7 +24927,10 @@ function canCacheResponse (cacheType, statusCode, resHeaders, cacheControlDirect
     return false
   }
 
-  if (cacheType === 'shared' && cacheControlDirectives.private === true) {
+  if (cacheType === 'shared' && (
+    cacheControlDirectives.private === true ||
+    Object.hasOwn(resHeaders, 'set-cookie')
+  )) {
     return false
   }
 
@@ -24777,7 +25424,13 @@ module.exports = class DecoratorHandler {
   /**
    * @deprecated
    */
-  onBodySent () {}
+  onBodySent (...args) {
+    return this.#handler.onBodySent?.(...args)
+  }
+
+  onRequestSent (...args) {
+    return this.#handler.onRequestSent?.(...args)
+  }
 }
 
 
@@ -25039,8 +25692,11 @@ class DeduplicationHandler {
       return
     }
 
-    this.#completed = true
+    // Remove the entry before callbacks can synchronously dispatch a retry.
+    this.#cleanup()
     this.#primaryHandler.onResponseEnd?.(controller, trailers)
+    // A throwing end callback must still be handled by onResponseError.
+    this.#completed = true
 
     for (const waitingHandler of this.#waitingHandlers) {
       if (waitingHandler.done || waitingHandler.controller.aborted) {
@@ -25055,22 +25711,21 @@ class DeduplicationHandler {
         continue
       }
 
-      if (waitingHandler.controller.paused && waitingHandler.bufferedChunks.length > 0) {
+      if (waitingHandler.controller.paused) {
         waitingHandler.pendingTrailers = trailers
         continue
       }
 
       try {
         waitingHandler.handler.onResponseEnd?.(waitingHandler.controller, trailers)
-      } catch {
-        // Ignore errors from waiting handlers
+      } catch (err) {
+        this.#errorWaitingHandler(waitingHandler, err)
       }
 
       waitingHandler.done = true
     }
 
     this.#pruneDoneWaitingHandlers()
-    this.#onComplete?.()
   }
 
   /**
@@ -25084,6 +25739,7 @@ class DeduplicationHandler {
 
     this.#aborted = true
     this.#completed = true
+    this.#cleanup()
 
     this.#primaryHandler.onResponseError?.(controller, err)
 
@@ -25092,7 +25748,12 @@ class DeduplicationHandler {
     }
 
     this.#waitingHandlers = []
-    this.#onComplete?.()
+  }
+
+  #cleanup () {
+    const onComplete = this.#onComplete
+    this.#onComplete = null
+    onComplete?.()
   }
 
   /**
@@ -25134,8 +25795,8 @@ class DeduplicationHandler {
         ) {
           try {
             waitingHandler.handler.onResponseEnd?.(waitingHandler.controller, waitingHandler.pendingTrailers)
-          } catch {
-            // Ignore errors from waiting handlers
+          } catch (err) {
+            this.#errorWaitingHandler(waitingHandler, err)
           }
 
           waitingHandler.pendingTrailers = null
@@ -25153,12 +25814,22 @@ class DeduplicationHandler {
       get aborted () { return state.aborted },
       get reason () { return state.reason },
       abort: (reason) => {
+        if (state.aborted) {
+          return
+        }
+
         state.aborted = true
         state.reason = reason ?? null
         waitingHandler.done = true
         waitingHandler.pendingTrailers = null
         waitingHandler.bufferedChunks = []
         waitingHandler.bufferedBytes = 0
+
+        try {
+          handler.onResponseError?.(waitingHandler.controller, state.reason ?? new RequestAbortedError())
+        } catch {
+          // Ignore errors from waiting handlers
+        }
       }
     }
 
@@ -25183,7 +25854,7 @@ class DeduplicationHandler {
 
     if (waitingHandler.bufferedBytes > this.#maxBufferSize) {
       const err = new RequestAbortedError(`Deduplicated waiting handler exceeded maxBufferSize (${this.#maxBufferSize} bytes) while paused`)
-      this.#errorWaitingHandler(waitingHandler, err)
+      waitingHandler.controller.abort(err)
     }
   }
 
@@ -25232,8 +25903,9 @@ class DeduplicationHandler {
     waitingHandler.bufferedChunks = []
     waitingHandler.bufferedBytes = 0
 
+    // A response failure is not a consumer abort: retry handlers must be able
+    // to retry it just as they would a failure of the primary request.
     try {
-      waitingHandler.controller.abort(err)
       waitingHandler.handler.onResponseError?.(waitingHandler.controller, err)
     } catch {
       // Ignore errors from waiting handlers
@@ -25258,6 +25930,7 @@ module.exports = DeduplicationHandler
 const util = __nccwpck_require__(3440)
 const assert = __nccwpck_require__(4589)
 const { InvalidArgumentError } = __nccwpck_require__(8707)
+const { kRequestOrigin } = __nccwpck_require__(6443)
 
 const redirectableStatusCodes = [300, 301, 302, 303, 307, 308]
 
@@ -25298,11 +25971,24 @@ class RedirectHandler {
     this.handler.onRequestStart?.(controller, { ...context, history: this.history })
   }
 
+  onBodySent (chunk) {
+    this.handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.handler.onRequestSent?.()
+  }
+
   onRequestUpgrade (controller, statusCode, headers, socket) {
     this.handler.onRequestUpgrade?.(controller, statusCode, headers, socket)
   }
 
   onResponseStart (controller, statusCode, headers, statusMessage) {
+    if (statusCode < 200) {
+      this.handler.onResponseStart?.(controller, statusCode, headers, statusMessage)
+      return
+    }
+
     if (this.opts.throwOnMaxRedirect && this.history.length >= this.maxRedirections) {
       throw new Error('max redirects')
     }
@@ -25336,8 +26022,12 @@ class RedirectHandler {
       ? null
       : headers.location
 
-    if (this.opts.origin) {
-      this.history.push(new URL(this.opts.path, this.opts.origin))
+    const requestOrigin = this.opts[kRequestOrigin] === undefined
+      ? this.opts.origin
+      : this.opts[kRequestOrigin]
+
+    if (requestOrigin) {
+      this.history.push(new URL(this.opts.path, requestOrigin))
     }
 
     if (!this.location) {
@@ -25345,7 +26035,10 @@ class RedirectHandler {
       return
     }
 
-    const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)))
+    const baseUrl = requestOrigin
+      ? new URL(this.opts.path, requestOrigin)
+      : undefined
+    const { origin, pathname, search } = util.parseURL(new URL(this.location, baseUrl))
     const path = search ? `${pathname}${search}` : pathname
 
     // Check for redirect loops by seeing if we've already visited this URL in our history
@@ -25361,9 +26054,10 @@ class RedirectHandler {
     // Remove headers referring to the original URL.
     // By default it is Host only. A 303 or a 301/302 POST-to-GET redirect also removes all Content-* headers.
     // https://tools.ietf.org/html/rfc7231#section-6.4
-    this.opts.headers = cleanRequestHeaders(this.opts.headers, removeContentHeaders, this.opts.origin !== origin, this.stripHeadersOnRedirect, this.stripHeadersOnCrossOriginRedirect)
+    this.opts.headers = cleanRequestHeaders(this.opts.headers, removeContentHeaders, requestOrigin !== origin, this.stripHeadersOnRedirect, this.stripHeadersOnCrossOriginRedirect)
     this.opts.path = path
     this.opts.origin = origin
+    this.opts[kRequestOrigin] = origin
     this.opts.query = null
   }
 
@@ -25485,7 +26179,7 @@ module.exports = RedirectHandler
 const assert = __nccwpck_require__(4589)
 
 const { kRetryHandlerDefaultRetry } = __nccwpck_require__(6443)
-const { RequestRetryError } = __nccwpck_require__(8707)
+const { RequestRetryError, RequestAbortedError } = __nccwpck_require__(8707)
 const {
   isDisturbed,
   parseRangeHeader,
@@ -25524,19 +26218,59 @@ function validatePartialResponseContentLength (headers, range, statusCode, retry
 // new one: backpressure pauses the new connection's controller, but the
 // consumer's resume() targets the old one, so the resumed body stalls forever.
 // The proxy always forwards to the controller of the currently active connection.
+// An abort is additionally reported to the handler so it can cancel a pending
+// retry backoff instead of letting the request hang until the backoff elapses.
+// The notification is a private callback the handler hands over on construction,
+// so nothing outside the handler can trigger it.
 class RetryController {
-  constructor () {
-    this.target = null
+  #onAbort
+  #paused = false
+  #target = null
+
+  constructor (onAbort) {
+    this.#onAbort = onAbort
   }
 
-  pause () { this.target?.pause() }
-  resume () { this.target?.resume() }
-  abort (reason) { this.target?.abort(reason) }
-  get paused () { return this.target?.paused ?? false }
-  get aborted () { return this.target?.aborted ?? false }
-  get reason () { return this.target?.reason ?? null }
-  get rawHeaders () { return this.target?.rawHeaders ?? null }
-  get rawTrailers () { return this.target?.rawTrailers ?? null }
+  set target (target) {
+    this.#target = target
+    if (this.#paused) {
+      target?.pause()
+    }
+  }
+
+  get target () { return this.#target }
+
+  pause () {
+    this.#paused = true
+    this.#target?.pause()
+  }
+
+  resume () {
+    this.#paused = false
+    this.#target?.resume()
+  }
+
+  abort (reason) {
+    this.#target?.abort(reason)
+    this.#onAbort(reason)
+  }
+
+  get paused () { return this.#paused || (this.#target?.paused ?? false) }
+  get aborted () { return this.#target?.aborted ?? false }
+  get reason () { return this.#target?.reason ?? null }
+  get rawHeaders () { return this.#target?.rawHeaders ?? null }
+  set rawHeaders (value) {
+    if (this.#target) {
+      this.#target.rawHeaders = value
+    }
+  }
+
+  get rawTrailers () { return this.#target?.rawTrailers ?? null }
+  set rawTrailers (value) {
+    if (this.#target) {
+      this.#target.rawTrailers = value
+    }
+  }
 }
 
 class RetryHandler {
@@ -25595,15 +26329,38 @@ class RetryHandler {
     this.etag = null
     this.statusCode = null
     this.headers = null
-    this.controllerProxy = new RetryController()
+    this.controllerProxy = new RetryController(reason => this.#onAbort(reason))
+    // A retry decision is in flight (the policy may be holding a backoff
+    // timer). While pending, a consumer abort cancels the wait.
+    this.retryPending = false
+    // Backoff timer returned by the retry policy, so #onAbort can cancel it.
+    // Null for custom policies that do not return their timer.
+    this.retryTimer = null
+    // A response can complete while its controller is paused if the peer closes
+    // the connection. Hold its body until the retry policy decides whether to
+    // discard it for a retry or forward it as the final response.
+    this.pendingResponseData = null
+    this.pendingResponseTrailers = null
+    this.pendingResponseEnded = false
+    // Set once an abort during the backoff delivered the terminal error
+    // downstream; late policy callbacks and connection errors are then moot.
+    this.aborted = false
   }
 
   onResponseStartWithRetry (controller, statusCode, headers, statusMessage, err) {
     if (this.retryOpts.throwOnError) {
       // Preserve old behavior for status codes that are not eligible for retry
       if (this.retryOpts.statusCodes.includes(statusCode) === false) {
-        this.headersSent = true
-        this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
+        if (this.headersSent) {
+          // The downstream handler already received the response from an
+          // earlier attempt. Forwarding this response would replace the
+          // downstream body and leave the original body pending forever.
+          this.handler.onResponseError?.(this.controllerProxy, err)
+        } else {
+          this.headersSent = true
+          this.checkpointResponseEnd(headers)
+          this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
+        }
       } else {
         this.error = err
       }
@@ -25613,20 +26370,55 @@ class RetryHandler {
 
     if (isDisturbed(this.opts.body)) {
       this.headersSent = true
+      this.checkpointResponseEnd(headers)
       this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
       return
     }
 
     function shouldRetry (passedErr) {
+      if (this.aborted) {
+        // Aborted while the policy was deciding; the decision is moot.
+        return
+      }
+      this.retryPending = false
+      this.retryTimer = null
+
+      const pendingData = this.pendingResponseData
+      const pendingTrailers = this.pendingResponseTrailers
+      const pendingEnd = this.pendingResponseEnded
+      this.pendingResponseData = null
+      this.pendingResponseTrailers = null
+      this.pendingResponseEnded = false
+
       if (passedErr) {
-        this.headersSent = true
-        this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
+        if (this.headersSent) {
+          // The downstream handler already received the response from an
+          // earlier attempt. Forwarding this response would replace the
+          // downstream body and leave the original body pending forever.
+          this.handler.onResponseError?.(this.controllerProxy, passedErr)
+        } else {
+          this.headersSent = true
+          this.checkpointResponseEnd(headers)
+          this.handler.onResponseStart?.(this.controllerProxy, statusCode, headers, statusMessage)
+          controller.resume()
+
+          if (pendingEnd) {
+            for (const chunk of pendingData) {
+              this.onResponseData(controller, chunk)
+            }
+            this.onResponseEnd(controller, pendingTrailers)
+          }
+          return
+        }
         controller.resume()
         return
       }
 
       this.error = err
       controller.resume()
+      if (pendingEnd) {
+        this.onResponseEnd(controller, pendingTrailers)
+      }
     }
 
     // The pause()/resume() pair (here and in shouldRetry) acts on THIS
@@ -25637,14 +26429,34 @@ class RetryHandler {
     // between, leaving this one paused forever -- the very stall the proxy exists
     // to prevent.
     controller.pause()
-    this.retryOpts.retry(
+    // The default policy returns its backoff timer so an abort can cancel it;
+    // a custom policy may return anything (or nothing), which is ignored.
+    this.retryPending = true
+    this.pendingResponseData = []
+    this.pendingResponseTrailers = null
+    this.pendingResponseEnded = false
+    this.retryTimer = this.retryOpts.retry(
       err,
       {
         state: { counter: this.retryCount },
         opts: { retryOptions: this.retryOpts, ...this.opts }
       },
       shouldRetry.bind(this)
-    )
+    ) ?? null
+  }
+
+  checkpointResponseEnd (headers) {
+    if (this.end == null && this.opts.method !== 'HEAD') {
+      const contentLength = headers['content-length']
+      this.end = contentLength != null ? Number(contentLength) - 1 : null
+
+      assert(
+        this.end == null || Number.isFinite(this.end),
+        'invalid content-length'
+      )
+
+      this.resume = this.end != null
+    }
   }
 
   onRequestStart (controller, context) {
@@ -25657,6 +26469,14 @@ class RetryHandler {
     if (!this.headersSent) {
       this.handler.onRequestStart?.(this.controllerProxy, context)
     }
+  }
+
+  onBodySent (chunk) {
+    this.handler.onBodySent?.(chunk)
+  }
+
+  onRequestSent () {
+    this.handler.onRequestSent?.()
   }
 
   onRequestUpgrade (_controller, statusCode, headers, socket) {
@@ -25673,7 +26493,8 @@ class RetryHandler {
       timeoutFactor,
       statusCodes,
       errorCodes,
-      methods
+      methods,
+      retryAfter
     } = retryOptions
     const { counter } = state
 
@@ -25705,7 +26526,7 @@ class RetryHandler {
       return
     }
 
-    let retryAfterHeader = headers?.['retry-after']
+    let retryAfterHeader = retryAfter === false ? undefined : headers?.['retry-after']
     if (retryAfterHeader) {
       retryAfterHeader = Number(retryAfterHeader)
       retryAfterHeader = Number.isNaN(retryAfterHeader)
@@ -25720,7 +26541,9 @@ class RetryHandler {
           ? Math.min(retryAfterHeader, maxTimeout)
           : Math.min(minTimeout * timeoutFactor ** (counter - 1), maxTimeout)
 
-    setTimeout(() => cb(null), retryTimeout)
+    // Return the backoff timer so the handler can cancel it when the
+    // consumer aborts while the retry decision is pending.
+    return setTimeout(() => cb(null), retryTimeout)
   }
 
   onResponseStart (controller, statusCode, headers, statusMessage) {
@@ -25733,18 +26556,6 @@ class RetryHandler {
     this.retryCount += 1
     this.statusCode = statusCode
     this.headers = headers
-
-    if (statusCode >= 300) {
-      const err = new RequestRetryError('Request failed', statusCode, {
-        headers,
-        data: {
-          count: this.retryCount
-        }
-      })
-
-      this.onResponseStartWithRetry(controller, statusCode, headers, statusMessage, err)
-      return
-    }
 
     // Checkpoint for resume from where we left it
     if (this.headersSent) {
@@ -25782,9 +26593,25 @@ class RetryHandler {
 
       const { start, size, end = size ? size - 1 : null } = contentRange
 
-      assert(this.start === start, 'content-range mismatch')
-      assert(this.end == null || this.end === end, 'content-range mismatch')
+      if (this.start !== start || (this.end != null && this.end !== end)) {
+        throw new RequestRetryError('Content-Range mismatch', statusCode, {
+          headers,
+          data: { count: this.retryCount }
+        })
+      }
 
+      return
+    }
+
+    if (statusCode >= 300) {
+      const err = new RequestRetryError('Request failed', statusCode, {
+        headers,
+        data: {
+          count: this.retryCount
+        }
+      })
+
+      this.onResponseStartWithRetry(controller, statusCode, headers, statusMessage, err)
       return
     }
 
@@ -25859,6 +26686,11 @@ class RetryHandler {
   }
 
   onResponseData (_controller, chunk) {
+    if (this.pendingResponseData !== null) {
+      this.pendingResponseData.push(chunk)
+      return
+    }
+
     if (this.error) {
       return
     }
@@ -25869,6 +26701,12 @@ class RetryHandler {
   }
 
   onResponseEnd (_controller, trailers) {
+    if (this.pendingResponseData !== null) {
+      this.pendingResponseTrailers = trailers
+      this.pendingResponseEnded = true
+      return
+    }
+
     if (this.error && this.retryOpts.throwOnError) {
       throw this.error
     }
@@ -25918,14 +26756,27 @@ class RetryHandler {
   }
 
   onResponseError (controller, err) {
+    if (this.aborted) {
+      // #onAbort already delivered the terminal error downstream; the late
+      // error of the torn-down connection must not be forwarded twice.
+      return
+    }
+
     // controller is THIS failed connection (not the proxy): we inspect whether
     // the consumer aborted it to decide retry-vs-propagate.
-    if (controller?.aborted || isDisturbed(this.opts.body)) {
+    if (controller?.aborted || isDisturbed(this.opts.body) || (this.headersSent && !this.resume)) {
       this.handler.onResponseError?.(this.controllerProxy, err)
       return
     }
 
     function shouldRetry (returnedErr) {
+      if (this.aborted) {
+        // Aborted while the policy was deciding; the decision is moot.
+        return
+      }
+      this.retryPending = false
+      this.retryTimer = null
+
       if (!returnedErr) {
         this.retry()
         return
@@ -25945,14 +26796,34 @@ class RetryHandler {
       this.retryCount += 1
     }
 
-    this.retryOpts.retry(
+    this.retryPending = true
+    this.retryTimer = this.retryOpts.retry(
       err,
       {
         state: { counter: this.retryCount },
         opts: { retryOptions: this.retryOpts, ...this.opts }
       },
       shouldRetry.bind(this)
-    )
+    ) ?? null
+  }
+
+  #onAbort (reason) {
+    // A consumer abort lands on the controller proxy. If the retry policy is
+    // still deciding (typically holding a backoff timer), cancel the wait and
+    // surface the abort immediately instead of letting the request hang until
+    // the backoff elapses.
+    if (!this.retryPending) {
+      return
+    }
+
+    this.aborted = true
+    this.retryPending = false
+    clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    this.pendingResponseData = null
+    this.pendingResponseTrailers = null
+    this.pendingResponseEnded = false
+    this.handler.onResponseError?.(this.controllerProxy, reason ?? new RequestAbortedError())
   }
 }
 
@@ -25972,7 +26843,16 @@ const util = __nccwpck_require__(3440)
 const CacheHandler = __nccwpck_require__(9976)
 const MemoryCacheStore = __nccwpck_require__(4889)
 const CacheRevalidationHandler = __nccwpck_require__(7133)
-const { assertCacheStore, assertCacheMethods, makeCacheKey, normalizeHeaders, parseCacheControlHeader, isInvalidOrWildcardVaryHeader } = __nccwpck_require__(7659)
+const {
+  assertCacheStore,
+  assertCacheMethods,
+  getInterceptorOrigin,
+  makeCacheKey,
+  normalizeHeaders,
+  parseCacheControlHeader,
+  isInvalidOrWildcardVaryHeader,
+  parseVaryHeader
+} = __nccwpck_require__(7659)
 const { AbortError } = __nccwpck_require__(8707)
 const { parseHttpDate } = __nccwpck_require__(5453)
 
@@ -26083,7 +26963,10 @@ function staleResponseRequiresRevalidation (result, cacheType) {
  * @returns {boolean}
  */
 function revalidationResponseDisallowsCachedReuse (cacheType, headers) {
-  if (headers.vary && isInvalidOrWildcardVaryHeader(headers.vary)) {
+  if (
+    (headers.vary && isInvalidOrWildcardVaryHeader(headers.vary)) ||
+    (cacheType === 'shared' && Object.hasOwn(headers, 'set-cookie'))
+  ) {
     return true
   }
 
@@ -26099,6 +26982,25 @@ function revalidationResponseDisallowsCachedReuse (cacheType, headers) {
 
 function revalidationResponseUpdatesCacheControl (headers) {
   return headers['cache-control'] !== undefined
+}
+
+/**
+ * @param {import('../../types/cache-interceptor.d.ts').default.GetResult} result
+ * @param {Record<string, string | string[] | null> | undefined} varyDirectives
+ * @returns {boolean}
+ */
+function revalidationResponseAddsVary (result, varyDirectives) {
+  if (!varyDirectives) {
+    return false
+  }
+
+  for (const key in varyDirectives) {
+    if (result.vary == null || !Object.hasOwn(result.vary, key)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 function deleteCachedValue (store, cacheKey) {
@@ -26265,6 +27167,8 @@ function sendCachedValue (handler, opts, result, age, context, isStale) {
   assert(!stream.destroyed, 'stream should not be destroyed')
   assert(!stream.readableDidRead, 'stream should not be readableDidRead')
 
+  let aborted = false
+
   const controller = {
     rawHeaders: [],
     rawTrailers: [],
@@ -26278,12 +27182,13 @@ function sendCachedValue (handler, opts, result, age, context, isStale) {
       return stream.isPaused()
     },
     get aborted () {
-      return stream.destroyed
+      return aborted
     },
     get reason () {
       return stream.errored
     },
     abort (reason) {
+      aborted = true
       stream.destroy(reason ?? new AbortError())
     }
   }
@@ -26352,6 +27257,17 @@ function handleResult (
   result
 ) {
   if (!result) {
+    return handleUncachedResponse(dispatch, globalOpts, cacheKey, handler, opts, reqCacheControl)
+  }
+
+  // Shared stores may outlive the Undici version that wrote them. Do not
+  // re-serve a Set-Cookie header from an existing shared-cache entry.
+  if (globalOpts.type === 'shared' && Object.hasOwn(result.headers, 'set-cookie')) {
+    if (util.isStream(result.body)) {
+      result.body.on('error', nop).destroy()
+    }
+
+    deleteCachedValue(globalOpts.store, cacheKey)
     return handleUncachedResponse(dispatch, globalOpts, cacheKey, handler, opts, reqCacheControl)
   }
 
@@ -26437,6 +27353,13 @@ function handleResult (
 
               if (revalidationResponseUpdatesCacheControl(headers)) {
                 deleteCachedValue(globalOpts.store, cacheKey)
+              } else if (revalidationResponseAddsVary(result, headers.vary ? parseVaryHeader(headers.vary, opts.headers) : undefined)) {
+                if (util.isStream(result.body)) {
+                  result.body.on('error', nop).destroy()
+                }
+
+                deleteCachedValue(globalOpts.store, cacheKey)
+                return dispatch(opts, new CacheHandler(globalOpts, cacheKey, handler))
               }
             }
 
@@ -26504,29 +27427,28 @@ module.exports = (opts = {}) => {
     }
   }
 
-  return dispatch => {
+  return (dispatch, interceptorOrigin) => {
     return (opts, handler) => {
-      if (arrayIncludes(safeMethodsToNotCache, opts.method)) {
-        // Not a method we want to cache, skip
+      const requestOrigin = getInterceptorOrigin(opts, interceptorOrigin)
+      if (!requestOrigin || arrayIncludes(safeMethodsToNotCache, opts.method)) {
+        // We cannot safely cache without an authoritative origin, or this is
+        // not a method we want to cache.
         return dispatch(opts, handler)
       }
 
       // Check if origin is in whitelist
       if (origins !== undefined) {
-        if (!opts.origin) {
-          return dispatch(opts, handler)
-        }
-        const requestOrigin = opts.origin.toString().toLowerCase()
+        const normalizedRequestOrigin = requestOrigin.toString().toLowerCase()
         let isAllowed = false
 
         for (let i = 0; i < origins.length; i++) {
           const allowed = origins[i]
           if (typeof allowed === 'string') {
-            if (allowed.toLowerCase() === requestOrigin) {
+            if (allowed.toLowerCase() === normalizedRequestOrigin) {
               isAllowed = true
               break
             }
-          } else if (allowed.test(requestOrigin)) {
+          } else if (allowed.test(normalizedRequestOrigin)) {
             isAllowed = true
             break
           }
@@ -26555,7 +27477,12 @@ module.exports = (opts = {}) => {
       /**
        * @type {import('../../types/cache-interceptor.d.ts').default.CacheKey}
        */
-      const cacheKey = makeCacheKey(opts)
+      const cacheKey = makeCacheKey(opts, requestOrigin)
+
+      if (!arrayIncludes(util.safeHTTPMethods, opts.method)) {
+        return dispatch(opts, new CacheHandler(globalOpts, cacheKey, handler))
+      }
+
       const result = store.get(cacheKey)
 
       if (result && typeof result.then === 'function') {
@@ -26592,15 +27519,71 @@ module.exports = (opts = {}) => {
 
 
 const { createInflate, createGunzip, createBrotliDecompress, createZstdDecompress } = __nccwpck_require__(8522)
-const { pipeline } = __nccwpck_require__(7075)
+const { pipeline, Transform: TransformStream } = __nccwpck_require__(7075)
+const { InvalidArgumentError, ResponseExceededMaxSizeError } = __nccwpck_require__(8707)
 const DecoratorHandler = __nccwpck_require__(8155)
 
 /** @typedef {import('node:stream').Transform} Transform */
 /** @typedef {import('node:stream').Transform} Controller */
 /** @typedef {Transform&import('node:zlib').Zlib} DecompressorStream */
 
+class DecompressController {
+  #onPause
+  #onResume
+  #onAbort
+  #paused = false
+
+  constructor (onPause, onResume, onAbort) {
+    this.#onPause = onPause
+    this.#onResume = onResume
+    this.#onAbort = onAbort
+    this.target = null
+  }
+
+  pause () {
+    if (this.#paused) {
+      return
+    }
+
+    this.#paused = true
+    this.#onPause()
+  }
+
+  resume () {
+    if (!this.#paused) {
+      return
+    }
+
+    this.#paused = false
+    this.#onResume()
+  }
+
+  abort (reason) {
+    this.target?.abort(reason)
+    this.#onAbort(reason)
+  }
+
+  get paused () { return this.#paused }
+  get aborted () { return this.target?.aborted ?? false }
+  get reason () { return this.target?.reason ?? null }
+  get rawHeaders () { return this.target?.rawHeaders ?? null }
+  set rawHeaders (value) {
+    if (this.target) {
+      this.target.rawHeaders = value
+    }
+  }
+
+  get rawTrailers () { return this.target?.rawTrailers ?? null }
+  set rawTrailers (value) {
+    if (this.target) {
+      this.target.rawTrailers = value
+    }
+  }
+}
+
 /** @type {Record<string, () => DecompressorStream>} */
 const supportedEncodings = {
+  __proto__: null,
   gzip: createGunzip,
   'x-gzip': createGunzip,
   br: createBrotliDecompress,
@@ -26611,6 +27594,31 @@ const supportedEncodings = {
 }
 
 const defaultSkipStatusCodes = /** @type {const} */ ([204, 304])
+const defaultMaxSize = 0
+
+/**
+ * Limits the output of one stage in a decompression chain.
+ * @param {number} maxSize - Maximum output size in bytes
+ * @returns {Transform}
+ */
+function createMaxSizeLimiter (maxSize) {
+  let size = 0
+
+  return new TransformStream({
+    transform (chunk, _encoding, callback) {
+      const decompressedSize = size + chunk.length
+      if (decompressedSize > maxSize) {
+        callback(new ResponseExceededMaxSizeError(
+          `Decompressed response size (${decompressedSize}) exceeded maxSize (${maxSize})`
+        ))
+        return
+      }
+
+      size = decompressedSize
+      callback(null, chunk)
+    }
+  })
+}
 
 let warningEmitted = /** @type {boolean} */ (false)
 
@@ -26618,6 +27626,7 @@ let warningEmitted = /** @type {boolean} */ (false)
  * @typedef {Object} DecompressHandlerOptions
  * @property {number[]|Readonly<number[]>} [skipStatusCodes=[204, 304]] - List of status codes to skip decompression for
  * @property {boolean} [skipErrorResponses] - Whether to skip decompression for error responses (status codes >= 400)
+ * @property {number} [maxSize=0] - Maximum decompressed response size in bytes. 0 disables the limit
  */
 
 class DecompressHandler extends DecoratorHandler {
@@ -26629,11 +27638,138 @@ class DecompressHandler extends DecoratorHandler {
   #skipStatusCodes
   /** @type {boolean} */
   #skipErrorResponses
+  /** @type {number} */
+  #maxSize
+  /** @type {number} */
+  #decompressedSize = 0
+  /** @type {boolean} */
+  #terminated = false
+  /** @type {boolean} */
+  #inputEnded = false
+  /** @type {boolean} */
+  #inputBackpressured = false
+  /** @type {boolean} */
+  #upstreamPaused = false
+  /** @type {boolean} */
+  #draining = false
+  /** @type {boolean} */
+  #drainRequested = false
+  /** @type {boolean} */
+  #completionPending = false
+  /** @type {DecompressorStream | undefined} */
+  #finalDecompressor
+  /** @type {DecompressController} */
+  #controller
 
-  constructor (handler, { skipStatusCodes = defaultSkipStatusCodes, skipErrorResponses = true } = {}) {
+  constructor (handler, { skipStatusCodes = defaultSkipStatusCodes, skipErrorResponses = true, maxSize = defaultMaxSize } = {}) {
+    if (!Number.isSafeInteger(maxSize) || maxSize < 0) {
+      throw new InvalidArgumentError('maxSize must be a non-negative integer')
+    }
+
     super(handler)
     this.#skipStatusCodes = skipStatusCodes
     this.#skipErrorResponses = skipErrorResponses
+    this.#maxSize = maxSize
+    this.#controller = new DecompressController(
+      () => this.#onDownstreamPause(),
+      () => this.#onDownstreamResume(),
+      reason => {
+        if (this.#inputEnded && !this.#terminated) {
+          this.onResponseError(this.#controller, reason)
+        }
+      }
+    )
+  }
+
+  #onDownstreamPause () {
+    this.#pauseUpstream()
+  }
+
+  #onDownstreamResume () {
+    const drainWasDeferred = this.#draining
+    this.#drainOutput()
+    if (!drainWasDeferred) {
+      this.#resumeUpstreamIfNeeded()
+      this.#finishIfReady()
+    }
+  }
+
+  #pauseUpstream () {
+    if (!this.#upstreamPaused && !this.#terminated) {
+      this.#upstreamPaused = true
+      this.#controller.target?.pause()
+    }
+  }
+
+  #resumeUpstreamIfNeeded () {
+    if (this.#upstreamPaused && !this.#controller.paused && !this.#inputBackpressured) {
+      this.#upstreamPaused = false
+      if (!this.#inputEnded) {
+        this.#controller.target?.resume()
+      }
+    }
+  }
+
+  #drainOutput () {
+    if (this.#terminated || this.#controller.paused || !this.#finalDecompressor) {
+      return
+    }
+
+    if (this.#draining) {
+      this.#drainRequested = true
+      return
+    }
+
+    this.#draining = true
+    try {
+      do {
+        this.#drainRequested = false
+        let chunk
+        while (!this.#terminated && !this.#controller.paused && (chunk = this.#finalDecompressor.read()) !== null) {
+          if (this.#maxSize > 0) {
+            const decompressedSize = this.#decompressedSize + chunk.length
+            if (decompressedSize > this.#maxSize) {
+              this.#fail(new ResponseExceededMaxSizeError(
+                `Decompressed response size (${decompressedSize}) exceeded maxSize (${this.#maxSize})`
+              ))
+              return
+            }
+
+            this.#decompressedSize = decompressedSize
+          }
+
+          const result = super.onResponseData(this.#controller, chunk)
+          if (result === false && !this.#controller.paused) {
+            this.#controller.pause()
+          }
+        }
+      } while (this.#drainRequested && !this.#terminated && !this.#controller.paused)
+    } finally {
+      this.#draining = false
+    }
+
+    this.#resumeUpstreamIfNeeded()
+    this.#finishIfReady()
+  }
+
+  #finishIfReady () {
+    if (this.#terminated || !this.#completionPending || this.#controller.paused || this.#draining) {
+      return
+    }
+
+    this.#terminated = true
+    this.#cleanupDecompressors()
+    super.onResponseEnd(this.#controller, this.#trailers)
+  }
+
+  #onDecompressionEnd () {
+    if (this.#terminated) {
+      return
+    }
+
+    this.#completionPending = true
+    this.#drainOutput()
+    this.#finishIfReady()
   }
 
   /**
@@ -26653,7 +27789,7 @@ class DecompressHandler extends DecoratorHandler {
    * Creates a chain of decompressors for multiple content encodings
    *
    * @param {string} encodings - Comma-separated list of content encodings
-   * @returns {Array<DecompressorStream>} - Array of decompressor streams
+   * @returns {Array<Transform>} - Array of decompressor and limiting streams
    * @throws {Error} - If the number of content-encodings exceeds the maximum allowed
    */
   #createDecompressionChain (encodings) {
@@ -26681,60 +27817,97 @@ class DecompressHandler extends DecoratorHandler {
       decompressors.push(supportedEncodings[encoding]())
     }
 
-    return decompressors
+    if (decompressors.length < 2) {
+      return decompressors
+    }
+
+    /** @type {Transform[]} */
+    const streams = []
+    for (let i = 0; i < decompressors.length; i++) {
+      streams.push(decompressors[i])
+      if (i < decompressors.length - 1 && this.#maxSize > 0) {
+        streams.push(createMaxSizeLimiter(this.#maxSize))
+      }
+    }
+
+    return streams
   }
 
   /**
-   * Sets up event handlers for a decompressor stream using readable events
-   * @param {DecompressorStream} decompressor - The decompressor stream
-   * @param {Controller} controller - The controller to coordinate with
+   * Stops decompression and reports an error.
+   * @param {Error} error - The decompression error
    * @returns {void}
    */
-  #setupDecompressorEvents (decompressor, controller) {
-    decompressor.on('readable', () => {
-      let chunk
-      while ((chunk = decompressor.read()) !== null) {
-        const result = super.onResponseData(controller, chunk)
-        if (result === false) {
-          break
-        }
-      }
-    })
+  #fail (error) {
+    if (this.#terminated) {
+      return
+    }
 
-    decompressor.on('error', (error) => {
-      super.onResponseError(controller, error)
-    })
+    if (this.#inputEnded) {
+      // The request is already marked complete once the compressed input ends,
+      // so controller.abort() can no longer propagate decoder flush errors.
+      this.onResponseError(this.#controller, error)
+    } else {
+      this.#controller.abort(error)
+    }
+  }
+
+  /**
+   * Sets up event handlers for the final decompressor stream.
+   * @param {DecompressorStream} decompressor - The decompressor stream
+   * @returns {void}
+   */
+  #setupDecompressorEvents (decompressor) {
+    this.#finalDecompressor = decompressor
+    decompressor.on('readable', () => this.#drainOutput())
+    decompressor.on('error', (error) => this.#fail(error))
   }
 
   /**
    * Sets up event handling for a single decompressor
-   * @param {Controller} controller - The controller to handle events
    * @returns {void}
    */
-  #setupSingleDecompressor (controller) {
+  #setupSingleDecompressor () {
     const decompressor = this.#decompressors[0]
-    this.#setupDecompressorEvents(decompressor, controller)
+    this.#setupDecompressorEvents(decompressor)
 
-    decompressor.on('end', () => {
-      super.onResponseEnd(controller, this.#trailers)
-    })
+    decompressor.on('end', () => this.#onDecompressionEnd())
   }
 
   /**
    * Sets up event handling for multiple chained decompressors using pipeline
-   * @param {Controller} controller - The controller to handle events
    * @returns {void}
    */
-  #setupMultipleDecompressors (controller) {
+  #setupMultipleDecompressors () {
     const lastDecompressor = this.#decompressors[this.#decompressors.length - 1]
-    this.#setupDecompressorEvents(lastDecompressor, controller)
+    this.#setupDecompressorEvents(lastDecompressor)
 
     pipeline(this.#decompressors, (err) => {
-      if (err) {
-        super.onResponseError(controller, err)
+      if (this.#terminated) {
         return
       }
-      super.onResponseEnd(controller, this.#trailers)
+
+      if (err) {
+        this.#fail(err)
+        return
+      }
+
+      this.#onDecompressionEnd()
+    })
+  }
+
+  #setupInputBackpressure () {
+    const decompressor = this.#decompressors[0]
+    decompressor.on('drain', () => {
+      if (this.#terminated) {
+        return
+      }
+
+      this.#inputBackpressured = false
+      if (!this.#controller.paused) {
+        this.#drainOutput()
+        this.#resumeUpstreamIfNeeded()
+      }
     })
   }
 
@@ -26744,6 +27917,16 @@ class DecompressHandler extends DecoratorHandler {
    */
   #cleanupDecompressors () {
     this.#decompressors.length = 0
+    this.#finalDecompressor = undefined
+  }
+
+  onRequestStart (controller, context) {
+    this.#controller.target = controller
+    return super.onRequestStart(this.#controller, context)
+  }
+
+  onRequestUpgrade (controller, statusCode, headers, socket) {
+    return super.onRequestUpgrade(this.#controller, statusCode, headers, socket)
   }
 
   /**
@@ -26754,18 +27937,24 @@ class DecompressHandler extends DecoratorHandler {
    * @returns {void}
    */
   onResponseStart (controller, statusCode, headers, statusMessage) {
-    const contentEncoding = headers['content-encoding']
+    // Repeated field lines reach us as an array. RFC 9110 section 5.3 lets a
+    // recipient join them with commas, which yields the single-line form the
+    // decompression chain already handles.
+    const rawContentEncoding = headers['content-encoding']
+    const contentEncoding = Array.isArray(rawContentEncoding)
+      ? rawContentEncoding.join(',')
+      : rawContentEncoding
 
     // If content encoding is not supported or status code is in skip list
     if (this.#shouldSkipDecompression(contentEncoding, statusCode)) {
-      return super.onResponseStart(controller, statusCode, headers, statusMessage)
+      return super.onResponseStart(this.#controller, statusCode, headers, statusMessage)
     }
 
     const decompressors = this.#createDecompressionChain(contentEncoding.toLowerCase())
 
     if (decompressors.length === 0) {
       this.#cleanupDecompressors()
-      return super.onResponseStart(controller, statusCode, headers, statusMessage)
+      return super.onResponseStart(this.#controller, statusCode, headers, statusMessage)
     }
 
     this.#decompressors = decompressors
@@ -26773,8 +27962,8 @@ class DecompressHandler extends DecoratorHandler {
     // Remove compression headers since we're decompressing
     const { 'content-encoding': _, 'content-length': __, ...newHeaders } = headers
 
-    if (controller?.rawHeaders) {
-      const rawHeaders = controller.rawHeaders
+    if (this.#controller.rawHeaders) {
+      const rawHeaders = this.#controller.rawHeaders
 
       if (Array.isArray(rawHeaders)) {
         const filteredHeaders = []
@@ -26789,7 +27978,7 @@ class DecompressHandler extends DecoratorHandler {
 
           filteredHeaders.push(rawHeaders[i], rawHeaders[i + 1])
         }
-        controller.rawHeaders = filteredHeaders
+        rawHeaders.splice(0, rawHeaders.length, ...filteredHeaders)
       } else if (typeof rawHeaders === 'object') {
         for (const name of Object.keys(rawHeaders)) {
           const lowerName = name.toLowerCase()
@@ -26800,13 +27989,14 @@ class DecompressHandler extends DecoratorHandler {
       }
     }
 
+    this.#setupInputBackpressure()
     if (this.#decompressors.length === 1) {
-      this.#setupSingleDecompressor(controller)
+      this.#setupSingleDecompressor()
     } else {
-      this.#setupMultipleDecompressors(controller)
+      this.#setupMultipleDecompressors()
     }
 
-    return super.onResponseStart(controller, statusCode, newHeaders, statusMessage)
+    return super.onResponseStart(this.#controller, statusCode, newHeaders, statusMessage)
   }
 
   /**
@@ -26816,10 +28006,13 @@ class DecompressHandler extends DecoratorHandler {
    */
   onResponseData (controller, chunk) {
     if (this.#decompressors.length > 0) {
-      this.#decompressors[0].write(chunk)
+      if (!this.#decompressors[0].write(chunk)) {
+        this.#inputBackpressured = true
+        this.#pauseUpstream()
+      }
       return
     }
-    super.onResponseData(controller, chunk)
+    return super.onResponseData(this.#controller, chunk)
   }
 
   /**
@@ -26829,12 +28022,12 @@ class DecompressHandler extends DecoratorHandler {
    */
   onResponseEnd (controller, trailers) {
     if (this.#decompressors.length > 0) {
+      this.#inputEnded = true
       this.#trailers = trailers
       this.#decompressors[0].end()
-      this.#cleanupDecompressors()
       return
     }
-    super.onResponseEnd(controller, trailers)
+    return super.onResponseEnd(this.#controller, trailers)
   }
 
   /**
@@ -26843,13 +28036,16 @@ class DecompressHandler extends DecoratorHandler {
    * @returns {void}
    */
   onResponseError (controller, err) {
-    if (this.#decompressors.length > 0) {
-      for (const decompressor of this.#decompressors) {
-        decompressor.destroy(err)
-      }
-      this.#cleanupDecompressors()
+    if (this.#terminated) {
+      return
     }
-    super.onResponseError(controller, err)
+
+    this.#terminated = true
+    for (const decompressor of this.#decompressors) {
+      decompressor.destroy()
+    }
+    this.#cleanupDecompressors()
+    super.onResponseError(this.#controller, err)
   }
 }
 
@@ -26893,7 +28089,7 @@ module.exports = createDecompressInterceptor
 const diagnosticsChannel = __nccwpck_require__(3053)
 const util = __nccwpck_require__(3440)
 const DeduplicationHandler = __nccwpck_require__(3599)
-const { normalizeHeaders, makeCacheKey, makeDeduplicationKey } = __nccwpck_require__(7659)
+const { getInterceptorOrigin, normalizeHeaders, makeCacheKey, makeDeduplicationKey } = __nccwpck_require__(7659)
 
 const pendingRequestsChannel = diagnosticsChannel.channel('undici:request:pending-requests')
 
@@ -26947,9 +28143,10 @@ module.exports = (opts = {}) => {
    */
   const pendingRequests = new Map()
 
-  return dispatch => {
+  return (dispatch, interceptorOrigin) => {
     return (opts, handler) => {
-      if (opts.upgrade || methods.includes(opts.method) === false) {
+      const requestOrigin = getInterceptorOrigin(opts, interceptorOrigin)
+      if (!requestOrigin || opts.upgrade || methods.includes(opts.method) === false) {
         return dispatch(opts, handler)
       }
 
@@ -26967,7 +28164,7 @@ module.exports = (opts = {}) => {
         }
       }
 
-      const cacheKey = makeCacheKey(opts)
+      const cacheKey = makeCacheKey(opts, requestOrigin)
       const dedupeKey = makeDeduplicationKey(cacheKey, excludeHeaderNamesSet)
 
       // Check if there's already a pending request for this key
@@ -27017,6 +28214,7 @@ const { isIP } = __nccwpck_require__(7030)
 const { lookup } = __nccwpck_require__(610)
 const DecoratorHandler = __nccwpck_require__(8155)
 const { InvalidArgumentError, InformationalError } = __nccwpck_require__(8707)
+const { kRequestOrigin } = __nccwpck_require__(6443)
 const maxInt = Math.pow(2, 31) - 1
 
 function hasSafeIterator (headers) {
@@ -27448,6 +28646,9 @@ class DNSDispatchHandler extends DecoratorHandler {
             origin: `${this.#origin.protocol}//${
               ip.family === 6 ? `[${ip.address}]` : ip.address
             }${port}`,
+            [kRequestOrigin]: this.#opts[kRequestOrigin] === undefined
+              ? this.#origin
+              : this.#opts[kRequestOrigin],
             headers: withHostHeader(this.#origin.host, this.#opts.headers)
           }
           this.#dispatch(dispatchOpts, this)
@@ -27571,6 +28772,9 @@ module.exports = interceptorOpts => {
           ...origDispatchOpts,
           servername: origin.hostname, // For SNI on TLS
           origin: newOrigin.origin,
+          [kRequestOrigin]: origDispatchOpts[kRequestOrigin] === undefined
+            ? origin
+            : origDispatchOpts[kRequestOrigin],
           headers: withHostHeader(origin.host, origDispatchOpts.headers)
         }
 
@@ -27603,7 +28807,6 @@ class DumpHandler extends DecoratorHandler {
   #maxSize = 1024 * 1024
   #dumped = false
   #size = 0
-  #controller = null
   aborted = false
   reason = false
 
@@ -27625,7 +28828,6 @@ class DumpHandler extends DecoratorHandler {
 
   onRequestStart (controller, context) {
     controller.abort = this.#abort.bind(this)
-    this.#controller = controller
 
     return super.onRequestStart(controller, context)
   }
@@ -27649,43 +28851,32 @@ class DumpHandler extends DecoratorHandler {
   }
 
   onResponseError (controller, err) {
-    if (this.#dumped) {
-      return
-    }
-
-    // On network errors before connect, controller will be null
-    err = this.#controller?.reason ?? err
-
-    super.onResponseError(controller, err)
+    super.onResponseError(controller, this.aborted === true ? this.reason : err)
   }
 
   onResponseData (controller, chunk) {
     this.#size = this.#size + chunk.length
 
-    if (this.#size >= this.#maxSize) {
-      this.#dumped = true
+    if (this.#size > this.#maxSize) {
+      throw new RequestAbortedError(
+        `Response size (${this.#size}) larger than maxSize (${this.#maxSize})`
+      )
+    }
 
-      if (this.aborted === true) {
-        super.onResponseError(controller, this.reason)
-      } else {
-        super.onResponseEnd(controller, {})
-      }
+    if (this.#size === this.#maxSize) {
+      this.#dumped = true
     }
 
     return true
   }
 
   onResponseEnd (controller, trailers) {
-    if (this.#dumped) {
-      return
-    }
-
-    if (this.#controller.aborted === true) {
+    if (this.aborted === true) {
       super.onResponseError(controller, this.reason)
       return
     }
 
-    super.onResponseEnd(controller, trailers)
+    super.onResponseEnd(controller, this.#dumped ? {} : trailers)
   }
 }
 
@@ -28547,13 +29738,25 @@ class MockAgent extends Dispatcher {
     opts.origin = normalizeOrigin(opts.origin)
 
     // Call MockAgent.get to perform additional setup before dispatching as normal
-    this.get(opts.origin)
+    const mockDispatcher = this.get(opts.origin)
 
     this[kMockAgentAddCallHistoryLog](opts)
 
     const acceptNonStandardSearchParameters = this[kMockAgentAcceptsNonStandardSearchParameters]
 
     const dispatchOpts = { ...opts }
+
+    // Agent keeps HTTP/1.1-only dispatchers under a separate key. Legacy
+    // global dispatcher consumers use that path, so mirror the mock dispatches
+    // before delegating to the internal Agent.
+    if (dispatchOpts.allowH2 === false) {
+      const http1OnlyKey = `${dispatchOpts.origin}#http1-only`
+      if (!this[kClients].has(http1OnlyKey)) {
+        const http1OnlyDispatcher = this[kFactory](dispatchOpts.origin)
+        http1OnlyDispatcher[kDispatches] = mockDispatcher[kDispatches]
+        this[kMockAgentSet](http1OnlyKey, http1OnlyDispatcher)
+      }
+    }
 
     if (acceptNonStandardSearchParameters && dispatchOpts.path) {
       const [path, searchParams] = dispatchOpts.path.split('?')
@@ -29760,8 +30963,7 @@ function mockDispatch (opts, handler) {
             handler.onResponseError(null, new InvalidArgumentError('reply options callback must return an object'))
             return
           }
-          mockDispatch.data = { ...responseDefaults, ...resolvedData }
-          dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler)
+          dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler, { ...responseDefaults, ...resolvedData })
         },
         (error) => {
           handler.onResponseError(null, error)
@@ -29774,7 +30976,7 @@ function mockDispatch (opts, handler) {
       throw new InvalidArgumentError('reply options callback must return an object')
     }
 
-    mockDispatch.data = { ...responseDefaults, ...callbackResult }
+    return dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler, { ...responseDefaults, ...callbackResult })
   }
 
   return dispatchMockReply(mockDispatches, mockDispatch, key, opts, handler)
@@ -29783,9 +30985,13 @@ function mockDispatch (opts, handler) {
 /**
  * Replies to a request once the mock dispatch data is fully resolved
  */
-function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
-  // Parse mockDispatch data
-  const { data: response, delay } = mockDispatch
+function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler, resolvedResponse) {
+  // Parse mockDispatch data. When a reply callback has already been resolved
+  // in mockDispatch() (i.e. no body lifecycle hooks are involved), the resolved
+  // response is passed in here, leaving mockDispatch.data untouched so the
+  // callback can be re-invoked for persistent / times() replies.
+  const { data: responseData, delay } = mockDispatch
+  const response = resolvedResponse ?? responseData
 
   // If specified, trigger dispatch error
   if (response.error !== null) {
@@ -29881,8 +31087,7 @@ function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
               handler.onResponseError(null, new InvalidArgumentError('reply options callback must return an object'))
               return
             }
-            mockDispatch.data = { ...responseDefaults, ...resolvedData }
-            handleReply(dispatches, mockDispatch.data)
+            handleReply(dispatches, { ...responseDefaults, ...resolvedData })
           },
           (err) => {
             handler.onResponseError(null, err)
@@ -29895,8 +31100,7 @@ function dispatchMockReply (mockDispatches, mockDispatch, key, opts, handler) {
         throw new InvalidArgumentError('reply options callback must return an object')
       }
 
-      mockDispatch.data = { ...responseDefaults, ...callbackResult }
-      handleReply(dispatches, mockDispatch.data)
+      handleReply(dispatches, { ...responseDefaults, ...callbackResult })
       return
     }
 
@@ -31384,6 +32588,7 @@ const {
 } = __nccwpck_require__(3440)
 
 const { serializePathWithQuery } = __nccwpck_require__(3440)
+const { kRequestOrigin } = __nccwpck_require__(6443)
 
 const MAX_DELTA_SECONDS = 2147483647
 const RESTRICTIVE_DIRECTIVE_NAMES = ['no-store', 'private', 'no-cache']
@@ -31523,8 +32728,47 @@ function getMalformedRestrictiveDirectiveName (key) {
 /**
  * @param {import('../../types/dispatcher.d.ts').default.DispatchOptions} opts
  */
-function makeCacheKey (opts) {
-  const origin = opts.origin ? opts.origin.toString() : ''
+function getRequestOrigin (opts) {
+  const origin = opts[kRequestOrigin] === undefined
+    ? opts.origin
+    : opts[kRequestOrigin]
+  return typeof origin === 'string' || origin instanceof URL
+    ? origin
+    : null
+}
+
+/**
+ * @param {import('../../types/dispatcher.d.ts').default.DispatchOptions} opts
+ * @param {string|null|undefined} interceptorOrigin
+ */
+function getInterceptorOrigin (opts, interceptorOrigin) {
+  const requestOrigin = getRequestOrigin(opts)
+  if (interceptorOrigin === undefined) {
+    return requestOrigin
+  }
+  if (interceptorOrigin === null) {
+    return null
+  }
+  if (requestOrigin) {
+    try {
+      if (new URL(requestOrigin).origin !== interceptorOrigin) {
+        return null
+      }
+    } catch {
+      return interceptorOrigin
+    }
+  }
+  return interceptorOrigin
+}
+
+/**
+ * @param {import('../../types/dispatcher.d.ts').default.DispatchOptions} opts
+ * @param {string|URL|null} [origin]
+ */
+function makeCacheKey (opts, origin = getRequestOrigin(opts)) {
+  if (!origin) {
+    throw new Error('opts.origin is undefined')
+  }
 
   let fullPath = opts.path || '/'
 
@@ -31533,7 +32777,7 @@ function makeCacheKey (opts) {
   }
 
   return {
-    origin,
+    origin: origin.toString(),
     method: opts.method,
     path: fullPath,
     headers: opts.headers
@@ -32076,6 +33320,8 @@ function makeDeduplicationKey (cacheKey, excludeHeaders) {
 }
 
 module.exports = {
+  getInterceptorOrigin,
+  getRequestOrigin,
   makeCacheKey,
   normalizeHeaders,
   assertCacheKey,
@@ -33388,7 +34634,7 @@ class Cache {
   }
 
   async match (request, options = {}) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.match'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -33406,7 +34652,7 @@ class Cache {
   }
 
   async matchAll (request = undefined, options = {}) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.matchAll'
     if (request !== undefined) request = webidl.converters.RequestInfo(request)
@@ -33416,7 +34662,7 @@ class Cache {
   }
 
   async add (request) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.add'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -33434,7 +34680,7 @@ class Cache {
   }
 
   async addAll (requests) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.addAll'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -33532,7 +34778,10 @@ class Cache {
             }
           }
         },
-        processResponseEndOfBody (response) {
+        // Possible spec bug. If the body is never read, `processResponseEndOfBody` (which is attached to a TransformStream's flush hook)
+        // never runs, so this would hang. This hook, on the other hand, always reads the body.
+        // https://github.com/nodejs/undici/issues/5615
+        processResponseConsumeBody (response) {
           // 1.
           if (response.aborted) {
             responsePromise.reject(new DOMException('aborted', 'AbortError'))
@@ -33604,7 +34853,7 @@ class Cache {
   }
 
   async put (request, response) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.put'
     webidl.argumentLengthCheck(arguments, 2, prefix)
@@ -33735,7 +34984,7 @@ class Cache {
   }
 
   async delete (request, options = {}) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.delete'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -33801,7 +35050,7 @@ class Cache {
    * @returns {Promise<readonly Request[]>}
    */
   async keys (request = undefined, options = {}) {
-    webidl.brandCheck(this, Cache)
+    webidl.brandCheck(this, webidl.is.Cache)
 
     const prefix = 'Cache.keys'
 
@@ -34151,6 +35400,12 @@ class Cache {
     // 6.
     return Object.freeze(responseList)
   }
+
+  static {
+    webidl.is.Cache = (arg) => {
+      return arg != null && typeof arg === 'object' && #relevantRequestResponseList in arg
+    }
+  }
 }
 
 Object.defineProperties(Cache.prototype, {
@@ -34237,7 +35492,7 @@ class CacheStorage {
   }
 
   async match (request, options = {}) {
-    webidl.brandCheck(this, CacheStorage)
+    webidl.brandCheck(this, webidl.is.CacheStorage)
     webidl.argumentLengthCheck(arguments, 1, 'CacheStorage.match')
 
     request = webidl.converters.RequestInfo(request)
@@ -34274,7 +35529,7 @@ class CacheStorage {
    * @returns {Promise<boolean>}
    */
   async has (cacheName) {
-    webidl.brandCheck(this, CacheStorage)
+    webidl.brandCheck(this, webidl.is.CacheStorage)
 
     const prefix = 'CacheStorage.has'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -34292,7 +35547,7 @@ class CacheStorage {
    * @returns {Promise<Cache>}
    */
   async open (cacheName) {
-    webidl.brandCheck(this, CacheStorage)
+    webidl.brandCheck(this, webidl.is.CacheStorage)
 
     const prefix = 'CacheStorage.open'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -34326,7 +35581,7 @@ class CacheStorage {
    * @returns {Promise<boolean>}
    */
   async delete (cacheName) {
-    webidl.brandCheck(this, CacheStorage)
+    webidl.brandCheck(this, webidl.is.CacheStorage)
 
     const prefix = 'CacheStorage.delete'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -34341,13 +35596,19 @@ class CacheStorage {
    * @returns {Promise<string[]>}
    */
   async keys () {
-    webidl.brandCheck(this, CacheStorage)
+    webidl.brandCheck(this, webidl.is.CacheStorage)
 
     // 2.1
     const keys = this.#caches.keys()
 
     // 2.2
     return [...keys]
+  }
+
+  static {
+    webidl.is.CacheStorage = (arg) => {
+      return arg != null && typeof arg === 'object' && #caches in arg
+    }
   }
 }
 
@@ -34449,9 +35710,19 @@ module.exports = {
 const { parseSetCookie } = __nccwpck_require__(1978)
 const { stringify } = __nccwpck_require__(7797)
 const { webidl } = __nccwpck_require__(7879)
-const { Headers } = __nccwpck_require__(660)
 
-const brandChecks = webidl.brandCheckMultiple([Headers, globalThis.Headers].filter(Boolean))
+const globalHeadersBrandCheck = (arg) => webidl.brandCheck(arg, webidl.util.MakeTypeAssertion(globalThis.Headers))
+const undiciHeadersBrandCheck = (arg) => webidl.brandCheck(arg, webidl.is.Headers)
+
+function brandCheckHeaders (arg) {
+  try {
+    undiciHeadersBrandCheck(arg)
+    return
+  } catch {
+  }
+
+  globalHeadersBrandCheck(arg)
+}
 
 /**
  * @typedef {Object} Cookie
@@ -34474,12 +35745,14 @@ const brandChecks = webidl.brandCheckMultiple([Headers, globalThis.Headers].filt
 function getCookies (headers) {
   webidl.argumentLengthCheck(arguments, 1, 'getCookies')
 
-  brandChecks(headers)
+  brandCheckHeaders(headers)
 
   const cookie = headers.get('cookie')
 
+  // A null prototype keeps a cookie named `__proto__` from hitting the
+  // Object.prototype setter, which would silently drop it.
   /** @type {Record<string, string>} */
-  const out = {}
+  const out = { __proto__: null }
 
   if (!cookie) {
     return out
@@ -34501,7 +35774,7 @@ function getCookies (headers) {
  * @returns {void}
  */
 function deleteCookie (headers, name, attributes) {
-  brandChecks(headers)
+  brandCheckHeaders(headers)
 
   const prefix = 'deleteCookie'
   webidl.argumentLengthCheck(arguments, 2, prefix)
@@ -34526,7 +35799,7 @@ function deleteCookie (headers, name, attributes) {
 function getSetCookies (headers) {
   webidl.argumentLengthCheck(arguments, 1, 'getSetCookies')
 
-  brandChecks(headers)
+  brandCheckHeaders(headers)
 
   const cookies = headers.getSetCookie()
 
@@ -34555,7 +35828,7 @@ function parseCookie (cookie) {
 function setCookie (headers, cookie) {
   webidl.argumentLengthCheck(arguments, 2, 'setCookie')
 
-  brandChecks(headers)
+  brandCheckHeaders(headers)
 
   cookie = webidl.converters.Cookie(cookie)
 
@@ -34744,221 +36017,224 @@ function parseSetCookie (header) {
  * @param {Object.<string, unknown>} [cookieAttributeList={}]
  */
 function parseUnparsedAttributes (unparsedAttributes, cookieAttributeList = {}) {
-  // 1. If the unparsed-attributes string is empty, skip the rest of
-  //    these steps.
-  if (unparsedAttributes.length === 0) {
-    return cookieAttributeList
-  }
+  while (true) {
+    // 1. If the unparsed-attributes string is empty, skip the rest of
+    //    these steps.
+    if (unparsedAttributes.length === 0) {
+      return cookieAttributeList
+    }
 
-  // 2. Discard the first character of the unparsed-attributes (which
-  //    will be a %x3B (";") character).
-  assert(unparsedAttributes[0] === ';')
-  unparsedAttributes = unparsedAttributes.slice(1)
+    // 2. Discard the first character of the unparsed-attributes (which
+    //    will be a %x3B (";") character).
+    assert(unparsedAttributes[0] === ';')
+    unparsedAttributes = unparsedAttributes.slice(1)
 
-  let cookieAv = ''
+    let cookieAv = ''
 
-  // 3. If the remaining unparsed-attributes contains a %x3B (";")
-  //    character:
-  if (unparsedAttributes.includes(';')) {
+    // 3. If the remaining unparsed-attributes contains a %x3B (";")
+    //    character:
+    if (unparsedAttributes.includes(';')) {
     // 1. Consume the characters of the unparsed-attributes up to, but
     //    not including, the first %x3B (";") character.
-    cookieAv = collectASequenceOfCodePointsFast(
-      ';',
-      unparsedAttributes,
-      { position: 0 }
-    )
-    unparsedAttributes = unparsedAttributes.slice(cookieAv.length)
-  } else {
+      cookieAv = collectASequenceOfCodePointsFast(
+        ';',
+        unparsedAttributes,
+        { position: 0 }
+      )
+      unparsedAttributes = unparsedAttributes.slice(cookieAv.length)
+    } else {
     // Otherwise:
 
-    // 1. Consume the remainder of the unparsed-attributes.
-    cookieAv = unparsedAttributes
-    unparsedAttributes = ''
-  }
+      // 1. Consume the remainder of the unparsed-attributes.
+      cookieAv = unparsedAttributes
+      unparsedAttributes = ''
+    }
 
-  // Let the cookie-av string be the characters consumed in this step.
+    // Let the cookie-av string be the characters consumed in this step.
 
-  let attributeName = ''
-  let attributeValue = ''
+    let attributeName = ''
+    let attributeValue = ''
 
-  // 4. If the cookie-av string contains a %x3D ("=") character:
-  if (cookieAv.includes('=')) {
+    // 4. If the cookie-av string contains a %x3D ("=") character:
+    if (cookieAv.includes('=')) {
     // 1. The (possibly empty) attribute-name string consists of the
     //    characters up to, but not including, the first %x3D ("=")
     //    character, and the (possibly empty) attribute-value string
     //    consists of the characters after the first %x3D ("=")
     //    character.
-    const position = { position: 0 }
+      const position = { position: 0 }
 
-    attributeName = collectASequenceOfCodePointsFast(
-      '=',
-      cookieAv,
-      position
-    )
-    attributeValue = cookieAv.slice(position.position + 1)
-  } else {
+      attributeName = collectASequenceOfCodePointsFast(
+        '=',
+        cookieAv,
+        position
+      )
+      attributeValue = cookieAv.slice(position.position + 1)
+    } else {
     // Otherwise:
 
-    // 1. The attribute-name string consists of the entire cookie-av
-    //    string, and the attribute-value string is empty.
-    attributeName = cookieAv
-  }
+      // 1. The attribute-name string consists of the entire cookie-av
+      //    string, and the attribute-value string is empty.
+      attributeName = cookieAv
+    }
 
-  // 5. Remove any leading or trailing WSP characters from the attribute-
-  //    name string and the attribute-value string.
-  attributeName = attributeName.trim()
-  attributeValue = attributeValue.trim()
+    // 5. Remove any leading or trailing WSP characters from the attribute-
+    //    name string and the attribute-value string.
+    attributeName = attributeName.trim()
+    attributeValue = attributeValue.trim()
 
-  // 6. If the attribute-value is longer than 1024 octets, ignore the
-  //    cookie-av string and return to Step 1 of this algorithm.
-  if (attributeValue.length > maxAttributeValueSize) {
-    return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
-  }
+    // 6. If the attribute-value is longer than 1024 octets, ignore the
+    //    cookie-av string and return to Step 1 of this algorithm.
+    if (attributeValue.length > maxAttributeValueSize) {
+      continue
+    }
 
-  // 7. Process the attribute-name and attribute-value according to the
-  //    requirements in the following subsections.  (Notice that
-  //    attributes with unrecognized attribute-names are ignored.)
-  const attributeNameLowercase = attributeName.toLowerCase()
+    // 7. Process the attribute-name and attribute-value according to the
+    //    requirements in the following subsections.  (Notice that
+    //    attributes with unrecognized attribute-names are ignored.)
+    const attributeNameLowercase = attributeName.toLowerCase()
 
-  // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.1
-  // If the attribute-name case-insensitively matches the string
-  // "Expires", the user agent MUST process the cookie-av as follows.
-  if (attributeNameLowercase === 'expires') {
+    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.1
+    // If the attribute-name case-insensitively matches the string
+    // "Expires", the user agent MUST process the cookie-av as follows.
+    if (attributeNameLowercase === 'expires') {
     // 1. Let the expiry-time be the result of parsing the attribute-value
     //    as cookie-date (see Section 5.1.1).
-    const expiryTime = new Date(attributeValue)
+      const expiryTime = new Date(attributeValue)
 
-    // 2. If the attribute-value failed to parse as a cookie date, ignore
-    //    the cookie-av.
-    if (!Number.isNaN(expiryTime.getTime())) {
-      cookieAttributeList.expires = expiryTime
-    }
-  } else if (attributeNameLowercase === 'max-age') {
+      // 2. If the attribute-value failed to parse as a cookie date, ignore
+      //    the cookie-av.
+      if (!Number.isNaN(expiryTime.getTime())) {
+        cookieAttributeList.expires = expiryTime
+      }
+    } else if (attributeNameLowercase === 'max-age') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.2
     // If the attribute-name case-insensitively matches the string "Max-
     // Age", the user agent MUST process the cookie-av as follows.
 
-    // 1. If the first character of the attribute-value is not a DIGIT or a
-    //    "-" character, ignore the cookie-av.
-    const charCode = attributeValue.charCodeAt(0)
+      // 1. If the first character of the attribute-value is not a DIGIT or a
+      //    "-" character, ignore the cookie-av.
+      const charCode = attributeValue.charCodeAt(0)
+      const startsWithDigit = charCode >= 48 && charCode <= 57
+      const startsWithSignedDigit = attributeValue[0] === '-' && attributeValue.length > 1
 
-    if ((charCode < 48 || charCode > 57) && attributeValue[0] !== '-') {
-      return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
-    }
+      if (!startsWithDigit && !startsWithSignedDigit) {
+        continue
+      }
 
-    // 2. If the remainder of attribute-value contains a non-DIGIT
-    //    character, ignore the cookie-av.
-    if (!/^\d+$/.test(attributeValue)) {
-      return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
-    }
+      // 2. If the remainder of attribute-value contains a non-DIGIT
+      //    character, ignore the cookie-av.
+      if (/[^\d]/.test(attributeValue.slice(1))) {
+        continue
+      }
 
-    // 3. Let delta-seconds be the attribute-value converted to an integer.
-    const deltaSeconds = Number(attributeValue)
+      // 3. Let delta-seconds be the attribute-value converted to an integer.
+      const deltaSeconds = Number(attributeValue)
 
-    // 4. Let cookie-age-limit be the maximum age of the cookie (which
-    //    SHOULD be 400 days or less, see Section 4.1.2.2).
+      // 4. Let cookie-age-limit be the maximum age of the cookie (which
+      //    SHOULD be 400 days or less, see Section 4.1.2.2).
 
-    // 5. Set delta-seconds to the smaller of its present value and cookie-
-    //    age-limit.
-    // deltaSeconds = Math.min(deltaSeconds * 1000, maxExpiresMs)
+      // 5. Set delta-seconds to the smaller of its present value and cookie-
+      //    age-limit.
+      // deltaSeconds = Math.min(deltaSeconds * 1000, maxExpiresMs)
 
-    // 6. If delta-seconds is less than or equal to zero (0), let expiry-
-    //    time be the earliest representable date and time.  Otherwise, let
-    //    the expiry-time be the current date and time plus delta-seconds
-    //    seconds.
-    // const expiryTime = deltaSeconds <= 0 ? Date.now() : Date.now() + deltaSeconds
+      // 6. If delta-seconds is less than or equal to zero (0), let expiry-
+      //    time be the earliest representable date and time.  Otherwise, let
+      //    the expiry-time be the current date and time plus delta-seconds
+      //    seconds.
+      // const expiryTime = deltaSeconds <= 0 ? Date.now() : Date.now() + deltaSeconds
 
-    // 7. Append an attribute to the cookie-attribute-list with an
-    //    attribute-name of Max-Age and an attribute-value of expiry-time.
-    cookieAttributeList.maxAge = deltaSeconds
-  } else if (attributeNameLowercase === 'domain') {
+      // 7. Append an attribute to the cookie-attribute-list with an
+      //    attribute-name of Max-Age and an attribute-value of expiry-time.
+      cookieAttributeList.maxAge = deltaSeconds
+    } else if (attributeNameLowercase === 'domain') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.3
     // If the attribute-name case-insensitively matches the string "Domain",
     // the user agent MUST process the cookie-av as follows.
 
-    // 1. Let cookie-domain be the attribute-value.
-    let cookieDomain = attributeValue
+      // 1. Let cookie-domain be the attribute-value.
+      let cookieDomain = attributeValue
 
-    // 2. If cookie-domain starts with %x2E ("."), let cookie-domain be
-    //    cookie-domain without its leading %x2E (".").
-    if (cookieDomain[0] === '.') {
-      cookieDomain = cookieDomain.slice(1)
-    }
+      // 2. If cookie-domain starts with %x2E ("."), let cookie-domain be
+      //    cookie-domain without its leading %x2E (".").
+      if (cookieDomain[0] === '.') {
+        cookieDomain = cookieDomain.slice(1)
+      }
 
-    // 3. Convert the cookie-domain to lower case.
-    cookieDomain = cookieDomain.toLowerCase()
+      // 3. Convert the cookie-domain to lower case.
+      cookieDomain = cookieDomain.toLowerCase()
 
-    // 4. Append an attribute to the cookie-attribute-list with an
-    //    attribute-name of Domain and an attribute-value of cookie-domain.
-    cookieAttributeList.domain = cookieDomain
-  } else if (attributeNameLowercase === 'path') {
+      // 4. Append an attribute to the cookie-attribute-list with an
+      //    attribute-name of Domain and an attribute-value of cookie-domain.
+      cookieAttributeList.domain = cookieDomain
+    } else if (attributeNameLowercase === 'path') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.4
     // If the attribute-name case-insensitively matches the string "Path",
     // the user agent MUST process the cookie-av as follows.
 
-    // 1. If the attribute-value is empty or if the first character of the
-    //    attribute-value is not %x2F ("/"):
-    let cookiePath = ''
-    if (attributeValue.length === 0 || attributeValue[0] !== '/') {
+      // 1. If the attribute-value is empty or if the first character of the
+      //    attribute-value is not %x2F ("/"):
+      let cookiePath = ''
+      if (attributeValue.length === 0 || attributeValue[0] !== '/') {
       // 1. Let cookie-path be the default-path.
-      cookiePath = '/'
-    } else {
+        cookiePath = '/'
+      } else {
       // Otherwise:
 
-      // 1. Let cookie-path be the attribute-value.
-      cookiePath = attributeValue
-    }
+        // 1. Let cookie-path be the attribute-value.
+        cookiePath = attributeValue
+      }
 
-    // 2. Append an attribute to the cookie-attribute-list with an
-    //    attribute-name of Path and an attribute-value of cookie-path.
-    cookieAttributeList.path = cookiePath
-  } else if (attributeNameLowercase === 'secure') {
+      // 2. Append an attribute to the cookie-attribute-list with an
+      //    attribute-name of Path and an attribute-value of cookie-path.
+      cookieAttributeList.path = cookiePath
+    } else if (attributeNameLowercase === 'secure') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.5
     // If the attribute-name case-insensitively matches the string "Secure",
     // the user agent MUST append an attribute to the cookie-attribute-list
     // with an attribute-name of Secure and an empty attribute-value.
 
-    cookieAttributeList.secure = true
-  } else if (attributeNameLowercase === 'httponly') {
+      cookieAttributeList.secure = true
+    } else if (attributeNameLowercase === 'httponly') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.6
     // If the attribute-name case-insensitively matches the string
     // "HttpOnly", the user agent MUST append an attribute to the cookie-
     // attribute-list with an attribute-name of HttpOnly and an empty
     // attribute-value.
 
-    cookieAttributeList.httpOnly = true
-  } else if (attributeNameLowercase === 'samesite') {
+      cookieAttributeList.httpOnly = true
+    } else if (attributeNameLowercase === 'samesite') {
     // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4.7
     // If the attribute-name case-insensitively matches the string
     // "SameSite", the user agent MUST process the cookie-av as follows:
 
-    const attributeValueLowercase = attributeValue.toLowerCase()
+      const attributeValueLowercase = attributeValue.toLowerCase()
 
-    // 1. If cookie-av's attribute-value is a case-insensitive match for
-    //    "None", append an attribute to the cookie-attribute-list with an
-    //    attribute-name of "SameSite" and an attribute-value of "None".
-    if (attributeValueLowercase === 'none') {
-      cookieAttributeList.sameSite = 'None'
-    } else if (attributeValueLowercase === 'strict') {
+      // 1. If cookie-av's attribute-value is a case-insensitive match for
+      //    "None", append an attribute to the cookie-attribute-list with an
+      //    attribute-name of "SameSite" and an attribute-value of "None".
+      if (attributeValueLowercase === 'none') {
+        cookieAttributeList.sameSite = 'None'
+      } else if (attributeValueLowercase === 'strict') {
       // 2. If cookie-av's attribute-value is a case-insensitive match for
       //    "Strict", append an attribute to the cookie-attribute-list with
       //    an attribute-name of "SameSite" and an attribute-value of
       //    "Strict".
-      cookieAttributeList.sameSite = 'Strict'
-    } else if (attributeValueLowercase === 'lax') {
+        cookieAttributeList.sameSite = 'Strict'
+      } else if (attributeValueLowercase === 'lax') {
       // 3. If cookie-av's attribute-value is a case-insensitive match for
       //    "Lax", append an attribute to the cookie-attribute-list with an
       //    attribute-name of "SameSite" and an attribute-value of "Lax".
-      cookieAttributeList.sameSite = 'Lax'
-    }
-  } else {
-    cookieAttributeList.unparsed ??= []
+        cookieAttributeList.sameSite = 'Lax'
+      }
+    } else {
+      cookieAttributeList.unparsed ??= []
 
-    cookieAttributeList.unparsed.push(`${attributeName}=${attributeValue}`)
-  }
+      cookieAttributeList.unparsed.push(`${attributeName}=${attributeValue}`)
+    }
 
   // 8. Return to Step 1 of this algorithm.
-  return parseUnparsedAttributes(unparsedAttributes, cookieAttributeList)
+  }
 }
 
 module.exports = {
@@ -35289,7 +36565,9 @@ function stringify (cookie) {
     out.push(`Path=${cookie.path}`)
   }
 
-  if (cookie.expires && cookie.expires.toString() !== 'Invalid Date') {
+  // A numeric 0 is the Unix epoch, not an absent value -- the same reason the
+  // Max-Age check above tests the type rather than truthiness.
+  if (cookie.expires != null && cookie.expires.toString() !== 'Invalid Date') {
     out.push(`Expires=${toIMFDate(cookie.expires)}`)
   }
 
@@ -35332,6 +36610,7 @@ module.exports = {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
+const buffer = __nccwpck_require__(4573)
 const { Transform } = __nccwpck_require__(7075)
 const { isASCIINumber, isValidLastEventId } = __nccwpck_require__(4811)
 
@@ -35355,6 +36634,8 @@ const COLON = 0x3A
  * @type {32} SPACE
  */
 const SPACE = 0x20
+
+const defaultMaxEventSize = buffer.kStringMaxLength
 
 const DATA = Buffer.from('data')
 const EVENT = Buffer.from('event')
@@ -35397,6 +36678,12 @@ function isFieldName (line, length, field) {
   }
 
   return true
+}
+
+function createMaxEventSizeExceededError () {
+  const error = new Error('EventSource message size exceeded')
+  error.aborted = false
+  return error
 }
 
 /**
@@ -35447,6 +36734,8 @@ class EventSourceStream extends Transform {
   pos = 0
   lineChunkIndex = 0
   linePos = 0
+  eventDataSize = 0
+  maxEventSize
 
   event = {
     data: undefined,
@@ -35458,6 +36747,7 @@ class EventSourceStream extends Transform {
   /**
    * @param {object} options
    * @param {boolean} [options.readableObjectMode]
+   * @param {number} [options.maxEventSize]
    * @param {eventSourceSettings} [options.eventSourceSettings]
    * @param {(chunk: any, encoding?: BufferEncoding | undefined) => boolean} [options.push]
    */
@@ -35469,6 +36759,7 @@ class EventSourceStream extends Transform {
     super(options)
 
     this.state = options.eventSourceSettings || {}
+    this.maxEventSize = options.maxEventSize ?? defaultMaxEventSize
     if (options.push) {
       this.push = options.push
     }
@@ -35564,7 +36855,12 @@ class EventSourceStream extends Transform {
 
         // In any case, we can process the line as we reached an
         // end-of-line character
-        this.parseLine(this.readLine(), this.event)
+        try {
+          this.parseLine(this.readLine(), this.event)
+        } catch (error) {
+          callback(error)
+          return
+        }
         this.consumeCurrentByte()
         // A line was processed and this could be the end of the event. We need
         // to check if the next line is empty to determine if the event is
@@ -35615,6 +36911,13 @@ class EventSourceStream extends Transform {
     }
 
     if (isFieldName(line, fieldLength, DATA)) {
+      const valueBytes = line.length - valueStart
+      const eventDataSize = this.eventDataSize + (event.data === undefined ? 0 : 1) + valueBytes
+
+      if (this.maxEventSize > 0 && eventDataSize > this.maxEventSize) {
+        throw createMaxEventSizeExceededError()
+      }
+
       const value = line.toString('utf8', valueStart)
 
       if (event.data === undefined) {
@@ -35622,6 +36925,7 @@ class EventSourceStream extends Transform {
       } else {
         event.data += `\n${value}`
       }
+      this.eventDataSize = eventDataSize
       return
     }
 
@@ -35678,6 +36982,7 @@ class EventSourceStream extends Transform {
     this.event.event = undefined
     this.event.id = undefined
     this.event.retry = undefined
+    this.eventDataSize = 0
   }
 
   hasPendingEvent () {
@@ -35841,9 +37146,13 @@ const { EventSourceStream } = __nccwpck_require__(4031)
 const { parseMIMEType } = __nccwpck_require__(1900)
 const { createFastMessageEvent } = __nccwpck_require__(5188)
 const { isNetworkError } = __nccwpck_require__(9051)
-const { kEnumerableProperty } = __nccwpck_require__(3440)
+const { isValidHeaderValue, kEnumerableProperty } = __nccwpck_require__(3440)
 const { environmentSettingsObject } = __nccwpck_require__(3168)
 const { createPotentialCORSRequest } = __nccwpck_require__(4811)
+const { getGlobalDispatcher } = __nccwpck_require__(2581)
+const { isomorphicDecode } = __nccwpck_require__(8116)
+
+const textEncoder = new TextEncoder()
 
 let experimentalWarned = false
 
@@ -36021,6 +37330,8 @@ class EventSource extends EventTarget {
    * @readonly
    */
   get readyState () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#readyState
   }
 
@@ -36030,6 +37341,8 @@ class EventSource extends EventTarget {
    * @returns {string}
    */
   get url () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#url
   }
 
@@ -36038,6 +37351,8 @@ class EventSource extends EventTarget {
    * instantiated with CORS credentials set (true), or not (false, the default).
    */
   get withCredentials () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#withCredentials
   }
 
@@ -36115,6 +37430,7 @@ class EventSource extends EventTarget {
 
       const eventSourceStream = new EventSourceStream({
         eventSourceSettings: this.#state,
+        maxEventSize: this.#dispatcher.eventSourceOptions?.maxEventSize,
         push: (event) => {
           this.dispatchEvent(createFastMessageEvent(
             event.type,
@@ -36174,8 +37490,12 @@ class EventSource extends EventTarget {
       //         string, encoded as UTF-8.
       //      2. Set (`Last-Event-ID`, lastEventIDValue) in request's header
       //         list.
+      this.#request.headersList.delete('last-event-id', true)
       if (this.#state.lastEventId.length) {
-        this.#request.headersList.set('last-event-id', this.#state.lastEventId, true)
+        const lastEventId = isomorphicDecode(textEncoder.encode(this.#state.lastEventId))
+        if (isValidHeaderValue(lastEventId)) {
+          this.#request.headersList.set('last-event-id', lastEventId, true)
+        }
       }
 
       //   4. Fetch request and process the response obtained in this fashion, if any, as described earlier in this section.
@@ -36188,7 +37508,7 @@ class EventSource extends EventTarget {
    * CLOSED.
    */
   close () {
-    webidl.brandCheck(this, EventSource)
+    webidl.brandCheck(this, webidl.is.EventSource)
 
     if (this.#readyState === CLOSED) return
     this.#readyState = CLOSED
@@ -36197,10 +37517,14 @@ class EventSource extends EventTarget {
   }
 
   get onopen () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#events.open
   }
 
   set onopen (fn) {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     if (this.#events.open) {
       this.removeEventListener('open', this.#events.open)
     }
@@ -36216,10 +37540,14 @@ class EventSource extends EventTarget {
   }
 
   get onmessage () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#events.message
   }
 
   set onmessage (fn) {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     if (this.#events.message) {
       this.removeEventListener('message', this.#events.message)
     }
@@ -36235,10 +37563,14 @@ class EventSource extends EventTarget {
   }
 
   get onerror () {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     return this.#events.error
   }
 
   set onerror (fn) {
+    webidl.brandCheck(this, webidl.is.EventSource)
+
     if (this.#events.error) {
       this.removeEventListener('error', this.#events.error)
     }
@@ -36250,6 +37582,12 @@ class EventSource extends EventTarget {
       this.#events.error = fn
     } else {
       this.#events.error = null
+    }
+  }
+
+  static {
+    webidl.is.EventSource = (arg) => {
+      return arg != null && typeof arg === 'object' && #events in arg
     }
   }
 }
@@ -36299,7 +37637,8 @@ webidl.converters.EventSourceInitDict = webidl.dictionaryConverter([
   },
   {
     key: 'dispatcher', // undici only
-    converter: webidl.converters.any
+    converter: webidl.converters.any,
+    defaultValue: () => getGlobalDispatcher()
   },
   {
     key: 'node', // undici only
@@ -36400,7 +37739,6 @@ module.exports = {
 
 const util = __nccwpck_require__(3440)
 const {
-  ReadableStreamFrom,
   readableStreamClose,
   fullyReadBody,
   extractMimeType
@@ -36595,8 +37933,16 @@ function extractBody (object, keepalive = false) {
       )
     }
 
-    stream =
-      webidl.is.ReadableStream(object) ? object : ReadableStreamFrom(object)
+    stream = webidl.is.ReadableStream(object)
+      ? object
+      : ReadableStream.from(object).pipeThrough(new TransformStream({
+        transform (chunk, controller) {
+          const bytes = isUint8Array(chunk) ? chunk : Buffer.from(chunk)
+          if (bytes.byteLength) {
+            controller.enqueue(bytes)
+          }
+        }
+      }))
   }
 
   // 11. If source is a byte sequence, then set action to a
@@ -36691,7 +38037,7 @@ function cloneBody (body) {
   }
 }
 
-function bodyMixinMethods (instance, getInternalState) {
+function bodyMixinMethods (brandCheck, getInternalState) {
   const methods = {
     blob () {
       // The blob() method steps are to return the result of
@@ -36711,7 +38057,7 @@ function bodyMixinMethods (instance, getInternalState) {
         // Return a Blob whose contents are bytes and type attribute
         // is mimeType.
         return new Blob([bytes], { type: mimeType })
-      }, instance, getInternalState)
+      }, brandCheck, getInternalState)
     },
 
     arrayBuffer () {
@@ -36721,19 +38067,19 @@ function bodyMixinMethods (instance, getInternalState) {
       // whose contents are bytes.
       return consumeBody(this, (bytes) => {
         return new Uint8Array(bytes).buffer
-      }, instance, getInternalState)
+      }, brandCheck, getInternalState)
     },
 
     text () {
       // The text() method steps are to return the result of running
       // consume body with this and UTF-8 decode.
-      return consumeBody(this, utf8DecodeBytes, instance, getInternalState)
+      return consumeBody(this, utf8DecodeBytes, brandCheck, getInternalState)
     },
 
     json () {
       // The json() method steps are to return the result of running
       // consume body with this and parse JSON from bytes.
-      return consumeBody(this, parseJSONFromBytes, instance, getInternalState)
+      return consumeBody(this, parseJSONFromBytes, brandCheck, getInternalState)
     },
 
     formData () {
@@ -36781,7 +38127,7 @@ function bodyMixinMethods (instance, getInternalState) {
         throw new TypeError(
           'Content-Type was not one of "multipart/form-data" or "application/x-www-form-urlencoded".'
         )
-      }, instance, getInternalState)
+      }, brandCheck, getInternalState)
     },
 
     bytes () {
@@ -36790,7 +38136,7 @@ function bodyMixinMethods (instance, getInternalState) {
       // result of creating a Uint8Array from bytes in this’s relevant realm.
       return consumeBody(this, (bytes) => {
         return new Uint8Array(bytes)
-      }, instance, getInternalState)
+      }, brandCheck, getInternalState)
     },
 
     textStream () {
@@ -36840,20 +38186,20 @@ function bodyMixinMethods (instance, getInternalState) {
   return methods
 }
 
-function mixinBody (prototype, getInternalState) {
-  Object.assign(prototype.prototype, bodyMixinMethods(prototype, getInternalState))
+function mixinBody (prototype, getInternalState, brandCheck) {
+  Object.assign(prototype.prototype, bodyMixinMethods(brandCheck, getInternalState))
 }
 
 /**
  * @see https://fetch.spec.whatwg.org/#concept-body-consume-body
  * @param {any} object internal state
  * @param {(value: unknown) => unknown} convertBytesToJSValue
- * @param {any} instance
+ * @param {import('../../../types/webidl').WebidlIsFunction} brandCheck
  * @param {(target: any) => any} getInternalState
  */
-function consumeBody (object, convertBytesToJSValue, instance, getInternalState) {
+function consumeBody (object, convertBytesToJSValue, brandCheck, getInternalState) {
   try {
-    webidl.brandCheck(object, instance)
+    webidl.brandCheck(object, brandCheck)
   } catch (e) {
     return Promise.reject(e)
   }
@@ -37091,14 +38437,14 @@ module.exports = {
 
 
 const assert = __nccwpck_require__(4589)
-const { forgivingBase64, collectASequenceOfCodePoints, collectASequenceOfCodePointsFast, isomorphicDecode, removeASCIIWhitespace, removeChars } = __nccwpck_require__(8116)
+const { asciiLowercase, forgivingBase64, collectASequenceOfCodePoints, collectASequenceOfCodePointsFast, isomorphicDecode, removeASCIIWhitespace, removeChars } = __nccwpck_require__(8116)
 
 const encoder = new TextEncoder()
 
 /**
  * @see https://mimesniff.spec.whatwg.org/#http-token-code-point
  */
-const HTTP_TOKEN_CODEPOINTS = /^[-!#$%&'*+.^_|~A-Za-z0-9]+$/u
+const HTTP_TOKEN_CODEPOINTS = /^[-!#$%&'*+.^_`|~A-Za-z0-9]+$/u
 const HTTP_WHITESPACE_REGEX = /[\u000A\u000D\u0009\u0020]/u // eslint-disable-line
 
 /**
@@ -37159,7 +38505,7 @@ function dataURLProcessor (dataURL) {
   // 11. If mimeType ends with U+003B (;), followed by
   // zero or more U+0020 SPACE, followed by an ASCII
   // case-insensitive match for "base64", then:
-  if (/;(?:\u0020*)base64$/ui.test(mimeType)) {
+  if (/;\u0020*[Bb][Aa][Ss][Ee]64$/u.test(mimeType)) {
     // 1. Let stringBody be the isomorphic decode of body.
     const stringBody = isomorphicDecode(body)
 
@@ -37358,8 +38704,8 @@ function parseMIMEType (input) {
     return 'failure'
   }
 
-  const typeLowercase = type.toLowerCase()
-  const subtypeLowercase = subtype.toLowerCase()
+  const typeLowercase = asciiLowercase(type)
+  const subtypeLowercase = asciiLowercase(subtype)
 
   // 10. Let mimeType be a new MIME type record whose type
   // is type, in ASCII lowercase, and subtype is subtype,
@@ -37399,7 +38745,7 @@ function parseMIMEType (input) {
 
     // 4. Set parameterName to parameterName, in ASCII
     // lowercase.
-    parameterName = parameterName.toLowerCase()
+    parameterName = asciiLowercase(parameterName)
 
     // 5. If position is not past the end of input, then:
     if (position.position < input.length) {
@@ -38296,6 +39642,8 @@ const random = runtimeFeatures.has('crypto')
   ? (__nccwpck_require__(7598).randomInt)
   : (max) => Math.floor(Math.random() * max)
 
+let getFormDataState, setFormDataState, getFormDataBoundary
+
 // https://xhr.spec.whatwg.org/#formdata
 class FormData {
   #state = []
@@ -38314,7 +39662,7 @@ class FormData {
   }
 
   append (name, value, filename = undefined) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.append'
     webidl.argumentLengthCheck(arguments, 2, prefix)
@@ -38342,7 +39690,7 @@ class FormData {
   }
 
   delete (name) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.delete'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -38355,7 +39703,7 @@ class FormData {
   }
 
   get (name) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.get'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -38375,7 +39723,7 @@ class FormData {
   }
 
   getAll (name) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.getAll'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -38392,7 +39740,7 @@ class FormData {
   }
 
   has (name) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.has'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -38405,7 +39753,7 @@ class FormData {
   }
 
   set (name, value, filename = undefined) {
-    webidl.brandCheck(this, FormData)
+    webidl.brandCheck(this, webidl.is.FormData)
 
     const prefix = 'FormData.set'
     webidl.argumentLengthCheck(arguments, 2, prefix)
@@ -38470,40 +39818,34 @@ class FormData {
     return `FormData ${output.slice(output.indexOf(']') + 2)}`
   }
 
-  /**
-   * @param {FormData} formData
-   */
-  static getFormDataState (formData) {
-    return formData.#state
-  }
+  static {
+    /** @param {FormData} formData  */
+    getFormDataState = (formData) => formData.#state
 
-  /**
-   * @param {FormData} formData
-   * @param {any[]} newState
-   */
-  static setFormDataState (formData, newState) {
-    formData.#state = newState
-  }
+    /**
+     * @param {FormData} formData
+     * @param {any[]} newState
+     */
+    setFormDataState = (formData, newState) => {
+      formData.#state = newState
+    }
 
-  /**
-   * @param {FormData} formData
-   * @returns {string | null}
-   */
-  static getFormDataBoundary (formData) {
-    const boundary = formData.#boundary
-    if (boundary != null) return boundary
+    /**
+     * @param {FormData} formData
+     * @returns {string | null}
+     */
+    getFormDataBoundary = (formData) => {
+      // eslint-disable-next-line no-return-assign
+      return formData.#boundary ??= `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
+    }
 
-    // eslint-disable-next-line no-return-assign
-    return formData.#boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
+    webidl.is.FormData = (arg) => {
+      return arg != null && typeof arg === 'object' && #state in arg
+    }
   }
 }
 
-const { getFormDataState, setFormDataState, getFormDataBoundary } = FormData
-Reflect.deleteProperty(FormData, 'getFormDataState')
-Reflect.deleteProperty(FormData, 'setFormDataState')
-Reflect.deleteProperty(FormData, 'getFormDataBoundary')
-
-iteratorMixin('FormData', FormData, getFormDataState, 'name', 'value')
+iteratorMixin('FormData', FormData, getFormDataState, 'name', 'value', webidl.is.FormData)
 
 Object.defineProperties(FormData.prototype, {
   append: kEnumerableProperty,
@@ -38558,8 +39900,6 @@ function makeEntry (name, value, filename) {
   // 4. Return an entry whose name is name and whose value is value.
   return { name, value }
 }
-
-webidl.is.FormData = webidl.util.MakeTypeAssertion(FormData)
 
 module.exports = { FormData, makeEntry, setFormDataState, getFormDataBoundary }
 
@@ -39041,6 +40381,8 @@ class HeadersList {
   }
 }
 
+let getHeadersGuard, setHeadersGuard, getHeadersList, setHeadersList
+
 // https://fetch.spec.whatwg.org/#headers-class
 class Headers {
   #guard
@@ -39076,7 +40418,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-append
   append (name, value) {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     webidl.argumentLengthCheck(arguments, 2, 'Headers.append')
 
@@ -39089,7 +40431,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-delete
   delete (name) {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     webidl.argumentLengthCheck(arguments, 1, 'Headers.delete')
 
@@ -39133,7 +40475,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-get
   get (name) {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     webidl.argumentLengthCheck(arguments, 1, 'Headers.get')
 
@@ -39156,7 +40498,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-has
   has (name) {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     webidl.argumentLengthCheck(arguments, 1, 'Headers.has')
 
@@ -39179,7 +40521,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-set
   set (name, value) {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     webidl.argumentLengthCheck(arguments, 2, 'Headers.set')
 
@@ -39227,7 +40569,7 @@ class Headers {
 
   // https://fetch.spec.whatwg.org/#dom-headers-getsetcookie
   getSetCookie () {
-    webidl.brandCheck(this, Headers)
+    webidl.brandCheck(this, webidl.is.Headers)
 
     // 1. If this’s header list does not contain `Set-Cookie`, then return « ».
     // 2. Return the values of all headers in this’s header list whose name is
@@ -39248,37 +40590,38 @@ class Headers {
     return `Headers ${util.formatWithOptions(options, this.#headersList.entries)}`
   }
 
-  static getHeadersGuard (o) {
-    return o.#guard
-  }
+  static {
+    /** @param {Headers} headers */
+    getHeadersGuard = (headers) => headers.#guard
 
-  static setHeadersGuard (o, guard) {
-    o.#guard = guard
-  }
+    /**
+     * @param {Headers} headers
+     * @param {string} guard
+     */
+    setHeadersGuard = (headers, guard) => {
+      headers.#guard = guard
+    }
 
-  /**
-   * @param {Headers} o
-   */
-  static getHeadersList (o) {
-    return o.#headersList
-  }
+    /**
+     * @param {Headers} headers
+     */
+    getHeadersList = (headers) => headers.#headersList
 
-  /**
-   * @param {Headers} target
-   * @param {HeadersList} list
-   */
-  static setHeadersList (target, list) {
-    target.#headersList = list
+    /**
+     * @param {Headers} target
+     * @param {HeadersList} list
+     */
+    setHeadersList = (target, list) => {
+      target.#headersList = list
+    }
+
+    webidl.is.Headers = (arg) => {
+      return arg != null && typeof arg === 'object' && #guard in arg
+    }
   }
 }
 
-const { getHeadersGuard, setHeadersGuard, getHeadersList, setHeadersList } = Headers
-Reflect.deleteProperty(Headers, 'getHeadersGuard')
-Reflect.deleteProperty(Headers, 'setHeadersGuard')
-Reflect.deleteProperty(Headers, 'getHeadersList')
-Reflect.deleteProperty(Headers, 'setHeadersList')
-
-iteratorMixin('Headers', Headers, headersListSortAndCombine, 0, 1)
+iteratorMixin('Headers', Headers, headersListSortAndCombine, 0, 1, webidl.is.Headers)
 
 Object.defineProperties(Headers.prototype, {
   append: kEnumerableProperty,
@@ -39403,6 +40746,7 @@ const {
 const EE = __nccwpck_require__(8474)
 const { Readable, pipeline, finished, isErrored, isReadable } = __nccwpck_require__(7075)
 const { addAbortListener, bufferToLowerCasedHeaderName } = __nccwpck_require__(3440)
+const { SocketError } = __nccwpck_require__(8707)
 const { dataURLProcessor, serializeAMimeType, minimizeSupportedMimeType } = __nccwpck_require__(1900)
 const { getGlobalDispatcher } = __nccwpck_require__(2581)
 const { webidl } = __nccwpck_require__(7879)
@@ -40155,11 +41499,8 @@ async function mainFetch (fetchParams, recursive) {
 // https://fetch.spec.whatwg.org/#concept-scheme-fetch
 // given a fetch params fetchParams
 function schemeFetch (fetchParams) {
-  // Note: since the connection is destroyed on redirect, which sets fetchParams to a
-  // cancelled state, we do not want this condition to trigger *unless* there have been
-  // no redirects. See https://github.com/nodejs/undici/issues/1776
   // 1. If fetchParams is canceled, then return the appropriate network error for fetchParams.
-  if (isCancelled(fetchParams) && fetchParams.request.redirectCount === 0) {
+  if (isCancelled(fetchParams)) {
     return Promise.resolve(makeAppropriateNetworkError(fetchParams))
   }
 
@@ -40373,18 +41714,18 @@ function fetchFinale (fetchParams, response) {
   //    `Server-Timing` from response’s internal response’s header list.
   // TODO
 
-  // 3. Let processResponseEndOfBody be the following steps:
+  // 3. If fetchParams’s request’s destination is "document", then set fetchParams’s controller’s
+  //    full timing info to fetchParams’s timing info.
+  if (fetchParams.request.destination === 'document') {
+    fetchParams.controller.fullTimingInfo = timingInfo
+  }
+
+  // 4. Let processResponseEndOfBody be the following steps:
   const processResponseEndOfBody = () => {
     // 1. Let unsafeEndTime be the unsafe shared current time.
     const unsafeEndTime = Date.now() // ?
 
-    // 2. If fetchParams’s request’s destination is "document", then set fetchParams’s controller’s
-    //    full timing info to fetchParams’s timing info.
-    if (fetchParams.request.destination === 'document') {
-      fetchParams.controller.fullTimingInfo = timingInfo
-    }
-
-    // 3. Set fetchParams’s controller’s report timing steps to the following steps given a global object global:
+    // 2. Set fetchParams’s controller’s report timing steps to the following steps given a global object global:
     fetchParams.controller.reportTimingSteps = () => {
       // 1. If fetchParams’s request’s URL’s scheme is not an HTTP(S) scheme, then return.
       if (!urlIsHttpHttpsScheme(fetchParams.request.url)) {
@@ -40433,7 +41774,7 @@ function fetchFinale (fetchParams, response) {
       }
     }
 
-    // 4. Let processResponseEndOfBodyTask be the following steps:
+    // 3. Let processResponseEndOfBodyTask be the following steps:
     const processResponseEndOfBodyTask = () => {
       // 1. Set fetchParams’s request’s done flag.
       fetchParams.request.done = true
@@ -40452,11 +41793,11 @@ function fetchFinale (fetchParams, response) {
       }
     }
 
-    // 5. Queue a fetch task to run processResponseEndOfBodyTask with fetchParams’s task destination
+    // 4. Queue a fetch task to run processResponseEndOfBodyTask with fetchParams’s task destination
     queueMicrotask(() => processResponseEndOfBodyTask())
   }
 
-  // 4. If fetchParams’s process response is non-null, then queue a fetch task to run fetchParams’s
+  // 5. If fetchParams’s process response is non-null, then queue a fetch task to run fetchParams’s
   //    process response given response, with fetchParams’s task destination.
   if (fetchParams.processResponse != null) {
     queueMicrotask(() => {
@@ -40465,11 +41806,14 @@ function fetchFinale (fetchParams, response) {
     })
   }
 
-  // 5. Let internalResponse be response, if response is a network error; otherwise response’s internal response.
+  // 6. Let internalResponse be response, if response is a network error; otherwise response’s internal response.
   const internalResponse = response.type === 'error' ? response : (response.internalResponse ?? response)
 
-  // 6. If internalResponse’s body is null, then run processResponseEndOfBody.
-  // 7. Otherwise:
+  // 7. If response is a network error, then run the WebDriver BiDi fetch error steps with request.
+  //    Otherwise, run the WebDriver BiDi response completed steps with request and response.
+
+  // 8. If internalResponse’s body is null, then run processResponseEndOfBody.
+  // 9. Otherwise:
   if (internalResponse.body == null) {
     processResponseEndOfBody()
   } else {
@@ -40486,6 +41830,27 @@ function fetchFinale (fetchParams, response) {
     finished(internalResponse.body.stream, () => {
       processResponseEndOfBody()
     })
+  }
+
+  // 10. If fetchParams’s process response consume body is non-null, then:
+  if (fetchParams.processResponseConsumeBody != null) {
+    // 1. Let processBody given nullOrBytes be this step: run fetchParams’s
+    //    process response consume body given response and nullOrBytes.
+    const processBody = (nullOrBytes) => fetchParams.processResponseConsumeBody(response, nullOrBytes)
+
+    // 2. Let processBodyError be this step: run fetchParams’s process
+    //    response consume body given response and failure.
+    const processBodyError = () => fetchParams.processResponseConsumeBody(response, 'failure')
+
+    // 3. If internalResponse’s body is null, then queue a fetch task to run
+    //    processBody given null, with fetchParams’s task destination.
+    if (internalResponse.body == null) {
+      queueMicrotask(() => processBody(null))
+    } else {
+      // 4. Otherwise, fully read internalResponse’s body given processBody,
+      //    processBodyError, and fetchParams’s task destination.
+      fullyReadBody(internalResponse.body, processBody, processBodyError)
+    }
   }
 }
 
@@ -40562,7 +41927,7 @@ async function httpFetch (fetchParams) {
     // encouraged to, transmit an RST_STREAM frame.
     // See, https://github.com/whatwg/fetch/issues/1288
     if (request.redirect !== 'manual') {
-      fetchParams.controller.connection.destroy(undefined, false)
+      fetchParams.controller.connection.destroy()
     }
 
     // 2. Switch on request’s redirect mode:
@@ -41171,12 +42536,10 @@ async function httpNetworkFetch (
   fetchParams.controller.connection = {
     abort: null,
     destroyed: false,
-    destroy (err, abort = true) {
+    destroy (err) {
       if (!this.destroyed) {
         this.destroyed = true
-        if (abort) {
-          this.abort?.(err ?? new DOMException('The operation was aborted.', 'AbortError'))
-        }
+        this.abort?.(err ?? new DOMException('The operation was aborted.', 'AbortError'))
       }
     }
   }
@@ -41712,7 +43075,7 @@ async function httpNetworkFetch (
             this.body?.push(null)
           },
 
-          onResponseError (_controller, error) {
+          onResponseError (controller, error) {
             if (this.abort) {
               fetchParams.controller.off('terminated', this.abort)
             }
@@ -41731,7 +43094,9 @@ async function httpNetworkFetch (
 
             this.body?.destroy(error)
 
-            fetchParams.controller.terminate(error)
+            if (!controller?.aborted) {
+              fetchParams.controller.terminate(error)
+            }
 
             reject(error)
           },
@@ -41740,6 +43105,11 @@ async function httpNetworkFetch (
             // We need to support 200 for websocket over h2 as per RFC-8441
             // Absence of session means H1
             if ((socket.session != null && status !== 200) || (socket.session == null && status !== 101)) {
+              if (socket.session != null) {
+                // The server refused the extended CONNECT, and nothing further
+                // will settle this request. Fail the opening handshake here.
+                controller.abort(new SocketError('bad upgrade', null))
+              }
               return false
             }
 
@@ -41860,6 +43230,7 @@ function buildAbort (acRef) {
 }
 
 let patchMethodWarning = false
+let setRequestSignal, getRequestDispatcher, setRequestDispatcher, setRequestHeaders, getRequestState, setRequestState, removeRequestAbortListener
 
 // https://fetch.spec.whatwg.org/#request-class
 class Request {
@@ -42377,7 +43748,7 @@ class Request {
 
   // Returns request’s HTTP method, which is "GET" by default.
   get method () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The method getter steps are to return this’s request’s method.
     return this.#state.method
@@ -42385,7 +43756,7 @@ class Request {
 
   // Returns the URL of request as a string.
   get url () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The url getter steps are to return this’s request’s URL, serialized.
     return URLSerializer(this.#state.url)
@@ -42395,7 +43766,7 @@ class Request {
   // Note that headers added in the network layer by the user agent will not
   // be accounted for in this object, e.g., the "Host" header.
   get headers () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The headers getter steps are to return this’s headers.
     return this.#headers
@@ -42404,7 +43775,7 @@ class Request {
   // Returns the kind of resource requested by request, e.g., "document"
   // or "script".
   get destination () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The destination getter are to return this’s request’s destination.
     return this.#state.destination
@@ -42416,7 +43787,7 @@ class Request {
   // during fetching to determine the value of the `Referer` header of the
   // request being made.
   get referrer () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // 1. If this’s request’s referrer is "no-referrer", then return the
     // empty string.
@@ -42438,7 +43809,7 @@ class Request {
   // This is used during fetching to compute the value of the request’s
   // referrer.
   get referrerPolicy () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The referrerPolicy getter steps are to return this’s request’s referrer policy.
     return this.#state.referrerPolicy
@@ -42448,7 +43819,7 @@ class Request {
   // whether the request will use CORS, or will be restricted to same-origin
   // URLs.
   get mode () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The mode getter steps are to return this’s request’s mode.
     return this.#state.mode
@@ -42458,7 +43829,7 @@ class Request {
   // which is a string indicating whether credentials will be sent with the
   // request always, never, or only when sent to a same-origin URL.
   get credentials () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The credentials getter steps are to return this’s request’s credentials mode.
     return this.#state.credentials
@@ -42468,7 +43839,7 @@ class Request {
   // which is a string indicating how the request will
   // interact with the browser’s cache when fetching.
   get cache () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The cache getter steps are to return this’s request’s cache mode.
     return this.#state.cache
@@ -42479,7 +43850,7 @@ class Request {
   // request will be handled during fetching. A request
   // will follow redirects by default.
   get redirect () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The redirect getter steps are to return this’s request’s redirect mode.
     return this.#state.redirect
@@ -42489,7 +43860,7 @@ class Request {
   // cryptographic hash of the resource being fetched. Its value
   // consists of multiple hashes separated by whitespace. [SRI]
   get integrity () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The integrity getter steps are to return this’s request’s integrity
     // metadata.
@@ -42499,7 +43870,7 @@ class Request {
   // Returns a boolean indicating whether or not request can outlive the
   // global in which it was created.
   get keepalive () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The keepalive getter steps are to return this’s request’s keepalive.
     return this.#state.keepalive
@@ -42508,7 +43879,7 @@ class Request {
   // Returns a boolean indicating whether or not request is for a reload
   // navigation.
   get isReloadNavigation () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The isReloadNavigation getter steps are to return true if this’s
     // request’s reload-navigation flag is set; otherwise false.
@@ -42518,7 +43889,7 @@ class Request {
   // Returns a boolean indicating whether or not request is for a history
   // navigation (a.k.a. back-forward navigation).
   get isHistoryNavigation () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The isHistoryNavigation getter steps are to return true if this’s request’s
     // history-navigation flag is set; otherwise false.
@@ -42529,33 +43900,33 @@ class Request {
   // object indicating whether or not request has been aborted, and its
   // abort event handler.
   get signal () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // The signal getter steps are to return this’s signal.
     return this.#signal
   }
 
   get body () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     return this.#state.body ? this.#state.body.stream : null
   }
 
   get bodyUsed () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     return !!this.#state.body && util.isDisturbed(this.#state.body.stream)
   }
 
   get duplex () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     return 'half'
   }
 
   // Returns a clone of request.
   clone () {
-    webidl.brandCheck(this, Request)
+    webidl.brandCheck(this, webidl.is.Request)
 
     // 1. If this is unusable, then throw a TypeError.
     if (bodyUnusable(this.#state)) {
@@ -42617,73 +43988,69 @@ class Request {
     return `Request ${nodeUtil.formatWithOptions(options, properties)}`
   }
 
-  /**
-   * @param {Request} request
-   * @param {AbortSignal} newSignal
-   */
-  static setRequestSignal (request, newSignal) {
-    request.#signal = newSignal
-    return request
-  }
+  static {
+    /**
+     * @param {Request} request
+     * @param {AbortSignal} newSignal
+     */
+    setRequestSignal = (request, newSignal) => {
+      request.#signal = newSignal
+    }
 
-  /**
-   * @param {Request} request
-   */
-  static getRequestDispatcher (request) {
-    return request.#dispatcher
-  }
+    /**
+     * @param {Request} request
+     */
+    getRequestDispatcher = (request) => {
+      return request.#dispatcher
+    }
 
-  /**
-   * @param {Request} request
-   * @param {import('../../dispatcher/dispatcher')} newDispatcher
-   */
-  static setRequestDispatcher (request, newDispatcher) {
-    request.#dispatcher = newDispatcher
-  }
+    /**
+     * @param {Request} request
+     * @param {import('../../dispatcher/dispatcher')} newDispatcher
+     */
+    setRequestDispatcher = (request, newDispatcher) => {
+      request.#dispatcher = newDispatcher
+    }
 
-  /**
-   * @param {Request} request
-   * @param {Headers} newHeaders
-   */
-  static setRequestHeaders (request, newHeaders) {
-    request.#headers = newHeaders
-  }
+    /**
+     * @param {Request} request
+     * @param {Headers} newHeaders
+     */
+    setRequestHeaders = (request, newHeaders) => {
+      request.#headers = newHeaders
+    }
 
-  /**
-   * @param {Request} request
-   */
-  static getRequestState (request) {
-    return request.#state
-  }
+    /**
+     * @param {Request} request
+     */
+    getRequestState = (request) => {
+      return request.#state
+    }
 
-  /**
-   * @param {Request} request
-   * @param {any} newState
-   */
-  static setRequestState (request, newState) {
-    request.#state = newState
-  }
+    /**
+     * @param {Request} request
+     * @param {any} newState
+     */
+    setRequestState = (request, newState) => {
+      request.#state = newState
+    }
 
-  /**
-   * Removes the `abort` listener that makes this request's signal follow the
-   * signal passed to its constructor, if any. Idempotent.
-   * @param {Request} request
-   */
-  static removeRequestAbortListener (request) {
-    request.#abortCleanup?.()
+    /**
+     * Removes the `abort` listener that makes this request's signal follow the
+     * signal passed to its constructor, if any. Idempotent.
+     * @param {Request} request
+     */
+    removeRequestAbortListener = (request) => {
+      request.#abortCleanup?.()
+    }
+
+    webidl.is.Request = (arg) => {
+      return arg != null && typeof arg === 'object' && #state in arg
+    }
   }
 }
 
-const { setRequestSignal, getRequestDispatcher, setRequestDispatcher, setRequestHeaders, getRequestState, setRequestState, removeRequestAbortListener } = Request
-Reflect.deleteProperty(Request, 'setRequestSignal')
-Reflect.deleteProperty(Request, 'getRequestDispatcher')
-Reflect.deleteProperty(Request, 'setRequestDispatcher')
-Reflect.deleteProperty(Request, 'setRequestHeaders')
-Reflect.deleteProperty(Request, 'getRequestState')
-Reflect.deleteProperty(Request, 'setRequestState')
-Reflect.deleteProperty(Request, 'removeRequestAbortListener')
-
-mixinBody(Request, getRequestState)
+mixinBody(Request, getRequestState, webidl.is.Request)
 
 // https://fetch.spec.whatwg.org/#requests
 function makeRequest (init) {
@@ -42700,7 +44067,7 @@ function makeRequest (init) {
     serviceWorkers: init.serviceWorkers ?? 'all',
     initiator: init.initiator ?? '',
     destination: init.destination ?? '',
-    priority: init.priority ?? null,
+    priority: init.priority ?? 'auto',
     origin: init.origin ?? 'client',
     policyContainer: init.policyContainer ?? 'client',
     referrer: init.referrer ?? 'client',
@@ -42797,8 +44164,6 @@ Object.defineProperties(Request.prototype, {
     configurable: true
   }
 })
-
-webidl.is.Request = webidl.util.MakeTypeAssertion(Request)
 
 /**
  * @param {*} V
@@ -42906,8 +44271,7 @@ webidl.converters.RequestInit = webidl.dictionaryConverter([
   {
     key: 'priority',
     converter: webidl.converters.DOMString,
-    allowedValues: ['high', 'low', 'auto'],
-    defaultValue: () => 'auto'
+    allowedValues: ['high', 'low', 'auto']
   }
 ])
 
@@ -42952,6 +44316,7 @@ const assert = __nccwpck_require__(4589)
 const { isomorphicEncode, serializeJavascriptValueToJSONString } = __nccwpck_require__(8116)
 
 const textEncoder = new TextEncoder('utf-8')
+let getResponseHeaders, setResponseHeaders, getResponseState, setResponseState
 
 // https://fetch.spec.whatwg.org/#response-class
 class Response {
@@ -43074,7 +44439,7 @@ class Response {
 
   // Returns response’s type, e.g., "cors".
   get type () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The type getter steps are to return this’s response’s type.
     return this.#state.type
@@ -43082,7 +44447,7 @@ class Response {
 
   // Returns response’s URL, if it has one; otherwise the empty string.
   get url () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     const urlList = this.#state.urlList
 
@@ -43100,7 +44465,7 @@ class Response {
 
   // Returns whether response was obtained through a redirect.
   get redirected () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The redirected getter steps are to return true if this’s response’s URL
     // list has more than one item; otherwise false.
@@ -43109,7 +44474,7 @@ class Response {
 
   // Returns response’s status.
   get status () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The status getter steps are to return this’s response’s status.
     return this.#state.status
@@ -43117,7 +44482,7 @@ class Response {
 
   // Returns whether response’s status is an ok status.
   get ok () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The ok getter steps are to return true if this’s response’s status is an
     // ok status; otherwise false.
@@ -43126,7 +44491,7 @@ class Response {
 
   // Returns response’s status message.
   get statusText () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The statusText getter steps are to return this’s response’s status
     // message.
@@ -43135,27 +44500,27 @@ class Response {
 
   // Returns response’s headers as Headers.
   get headers () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // The headers getter steps are to return this’s headers.
     return this.#headers
   }
 
   get body () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     return this.#state.body ? this.#state.body.stream : null
   }
 
   get bodyUsed () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     return !!this.#state.body && util.isDisturbed(this.#state.body.stream)
   }
 
   // Returns a clone of response.
   clone () {
-    webidl.brandCheck(this, Response)
+    webidl.brandCheck(this, webidl.is.Response)
 
     // 1. If this is unusable, then throw a TypeError.
     if (bodyUnusable(this.#state)) {
@@ -43201,44 +44566,44 @@ class Response {
     return `Response ${nodeUtil.formatWithOptions(options, properties)}`
   }
 
-  /**
-   * @param {Response} response
-   */
-  static getResponseHeaders (response) {
-    return response.#headers
-  }
+  static {
+    /**
+     * @param {Response} response
+     */
+    getResponseHeaders = (response) => {
+      return response.#headers
+    }
 
-  /**
-   * @param {Response} response
-   * @param {Headers} newHeaders
-   */
-  static setResponseHeaders (response, newHeaders) {
-    response.#headers = newHeaders
-  }
+    /**
+     * @param {Response} response
+     * @param {Headers} newHeaders
+     */
+    setResponseHeaders = (response, newHeaders) => {
+      response.#headers = newHeaders
+    }
 
-  /**
-   * @param {Response} response
-   */
-  static getResponseState (response) {
-    return response.#state
-  }
+    /**
+     * @param {Response} response
+     */
+    getResponseState = (response) => {
+      return response.#state
+    }
 
-  /**
-   * @param {Response} response
-   * @param {any} newState
-   */
-  static setResponseState (response, newState) {
-    response.#state = newState
+    /**
+     * @param {Response} response
+     * @param {any} newState
+     */
+    setResponseState = (response, newState) => {
+      response.#state = newState
+    }
+
+    webidl.is.Response = (arg) => {
+      return arg != null && typeof arg === 'object' && #state in arg
+    }
   }
 }
 
-const { getResponseHeaders, setResponseHeaders, getResponseState, setResponseState } = Response
-Reflect.deleteProperty(Response, 'getResponseHeaders')
-Reflect.deleteProperty(Response, 'setResponseHeaders')
-Reflect.deleteProperty(Response, 'getResponseState')
-Reflect.deleteProperty(Response, 'setResponseState')
-
-mixinBody(Response, getResponseState)
+mixinBody(Response, getResponseState, webidl.is.Response)
 
 Object.defineProperties(Response.prototype, {
   type: kEnumerableProperty,
@@ -43553,8 +44918,6 @@ webidl.converters.ResponseInit = webidl.dictionaryConverter([
   }
 ])
 
-webidl.is.Response = webidl.util.MakeTypeAssertion(Response)
-
 module.exports = {
   isNetworkError,
   makeNetworkError,
@@ -43581,7 +44944,7 @@ const { redirectStatusSet, referrerPolicyTokens, badPortsSet } = __nccwpck_requi
 const { getGlobalOrigin } = __nccwpck_require__(1059)
 const { collectAnHTTPQuotedString, parseMIMEType } = __nccwpck_require__(1900)
 const { performance } = __nccwpck_require__(643)
-const { ReadableStreamFrom, isValidHTTPToken, normalizedMethodRecordsBase } = __nccwpck_require__(3440)
+const { isValidHTTPToken, normalizedMethodRecordsBase } = __nccwpck_require__(3440)
 const assert = __nccwpck_require__(4589)
 const { isUint8Array } = __nccwpck_require__(3429)
 const { webidl } = __nccwpck_require__(7879)
@@ -43802,14 +45165,19 @@ function TAOCheck () {
   return 'success'
 }
 
+// https://w3c.github.io/webappsec-fetch-metadata/#abstract-opdef-append-the-fetch-metadata-headers-for-a-request
 function appendFetchMetadata (httpRequest) {
+  //  1. If r’s url is not a potentially trustworthy URL, return.
+  if (!isURLPotentiallyTrustworthy(requestCurrentURL(httpRequest))) {
+    return
+  }
+
   //  https://w3c.github.io/webappsec-fetch-metadata/#sec-fetch-dest-header
   //  TODO
 
   //  https://w3c.github.io/webappsec-fetch-metadata/#sec-fetch-mode-header
 
   //  1. Assert: r’s url is a potentially trustworthy URL.
-  //  TODO
 
   //  2. Let header be a Structured Header whose value is a token.
   let header = null
@@ -44442,8 +45810,9 @@ function createIterator (name, kInternalIterator, keyIndex = 0, valueIndex = 1) 
  * @param {(target: any) => any} kInternalIterator
  * @param {string | number} [keyIndex]
  * @param {string | number} [valueIndex]
+ * @param {import('../../../types/webidl').WebidlIsFunction} brandCheck
  */
-function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueIndex = 1) {
+function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueIndex = 1, brandCheck) {
   const makeIterator = createIterator(name, kInternalIterator, keyIndex, valueIndex)
 
   const properties = {
@@ -44452,7 +45821,7 @@ function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueInde
       enumerable: true,
       configurable: true,
       value: function keys () {
-        webidl.brandCheck(this, object)
+        webidl.brandCheck(this, brandCheck)
         return makeIterator(this, 'key')
       }
     },
@@ -44461,7 +45830,7 @@ function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueInde
       enumerable: true,
       configurable: true,
       value: function values () {
-        webidl.brandCheck(this, object)
+        webidl.brandCheck(this, brandCheck)
         return makeIterator(this, 'value')
       }
     },
@@ -44470,7 +45839,7 @@ function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueInde
       enumerable: true,
       configurable: true,
       value: function entries () {
-        webidl.brandCheck(this, object)
+        webidl.brandCheck(this, brandCheck)
         return makeIterator(this, 'key+value')
       }
     },
@@ -44479,7 +45848,7 @@ function iteratorMixin (name, object, kInternalIterator, keyIndex = 0, valueInde
       enumerable: true,
       configurable: true,
       value: function forEach (callbackfn, thisArg = globalThis) {
-        webidl.brandCheck(this, object)
+        webidl.brandCheck(this, brandCheck)
         webidl.argumentLengthCheck(arguments, 1, `${name}.forEach`)
         if (typeof callbackfn !== 'function') {
           throw new TypeError(
@@ -45053,7 +46422,6 @@ module.exports = {
   isAborted,
   isCancelled,
   isValidEncodedURL,
-  ReadableStreamFrom,
   tryUpgradeRequestToAPotentiallyTrustworthyURL,
   clampAndCoarsenConnectionTimingInfo,
   coarsenedSharedCurrentTime,
@@ -45263,6 +46631,20 @@ function isomorphicEncode (input) {
   return input
 }
 
+const nonASCIIRegex = /[^\x00-\x7F]/ // eslint-disable-line no-control-regex
+
+/**
+ * @param {string} str
+ * @returns {string}
+ *
+ * @see https://infra.spec.whatwg.org/#ascii-lowercase
+ */
+function asciiLowercase (str) {
+  return nonASCIIRegex.test(str)
+    ? str.replace(/[A-Z]+/g, (upper) => upper.toLowerCase())
+    : str.toLowerCase()
+}
+
 /**
  * @see https://infra.spec.whatwg.org/#parse-json-bytes-to-a-javascript-value
  * @param {Uint8Array} bytes
@@ -45299,7 +46681,7 @@ function removeChars (str, leading, trailing, predicate) {
   }
 
   if (trailing) {
-    while (trail > 0 && predicate(str.charCodeAt(trail))) trail--
+    while (trail >= lead && predicate(str.charCodeAt(trail))) trail--
   }
 
   return lead === 0 && trail === str.length - 1 ? str : str.slice(lead, trail + 1)
@@ -45323,6 +46705,7 @@ function serializeJavascriptValueToJSONString (value) {
 }
 
 module.exports = {
+  asciiLowercase,
   collectASequenceOfCodePoints,
   collectASequenceOfCodePointsFast,
   forgivingBase64,
@@ -45683,9 +47066,9 @@ const webidl = {
 /**
  * @description Instantiate an error.
  *
- * @param {Object} opts
- * @param {string} opts.header
- * @param {string} opts.message
+ * @param {Object} message
+ * @param {string} message.header
+ * @param {string} message.message
  * @returns {TypeError}
  */
 webidl.errors.exception = function (message) {
@@ -45730,23 +47113,11 @@ webidl.errors.invalidArgument = function (context) {
 }
 
 // https://webidl.spec.whatwg.org/#implements
-webidl.brandCheck = function (V, I) {
-  if (!FunctionPrototypeSymbolHasInstance(I, V)) {
+webidl.brandCheck = function (V, is) {
+  if (!is(V)) {
     const err = new TypeError('Illegal invocation')
     err.code = 'ERR_INVALID_THIS' // node compat.
     throw err
-  }
-}
-
-webidl.brandCheckMultiple = function (List) {
-  const prototypes = List.map((c) => webidl.util.MakeTypeAssertion(c))
-
-  return (V) => {
-    if (prototypes.every(typeCheck => !typeCheck(V))) {
-      const err = new TypeError('Illegal invocation')
-      err.code = 'ERR_INVALID_THIS' // node compat.
-      throw err
-    }
   }
 }
 
@@ -46769,13 +48140,13 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
         // The presence of a session property on the socket indicates HTTP2
         // HTTP1
         if (response.socket?.session == null) {
-          failWebsocketConnection(handler, 1002, 'Received network error or non-101 status code.', response.error)
+          failHandshake(handler, response, 1002, 'Received network error or non-101 status code.', response.error)
           return
         }
 
         // HTTP2
         if (response.status !== 200) {
-          failWebsocketConnection(handler, 1002, 'Received network error or non-200 status code.', response.error)
+          failHandshake(handler, response, 1002, 'Received network error or non-200 status code.', response.error)
           return
         }
       }
@@ -46790,7 +48161,7 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
       //    header list results in null, failure, or the empty byte
       //    sequence, then fail the WebSocket connection.
       if (protocols.length !== 0 && !response.headersList.get('Sec-WebSocket-Protocol')) {
-        failWebsocketConnection(handler, 1002, 'Server did not respond with sent protocols.')
+        failHandshake(handler, response, 1002, 'Server did not respond with sent protocols.')
         return
       }
 
@@ -46806,7 +48177,7 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
       //    _Fail the WebSocket Connection_.
       //    For H2, no upgrade header is expected.
       if (response.socket.session == null && response.headersList.get('Upgrade')?.toLowerCase() !== 'websocket') {
-        failWebsocketConnection(handler, 1002, 'Server did not set Upgrade header to "websocket".')
+        failHandshake(handler, response, 1002, 'Server did not set Upgrade header to "websocket".')
         return
       }
 
@@ -46816,7 +48187,7 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
       //    MUST _Fail the WebSocket Connection_.
       //    For H2, no connection header is expected.
       if (response.socket.session == null && response.headersList.get('Connection')?.toLowerCase() !== 'upgrade') {
-        failWebsocketConnection(handler, 1002, 'Server did not set Connection header to "upgrade".')
+        failHandshake(handler, response, 1002, 'Server did not set Connection header to "upgrade".')
         return
       }
 
@@ -46827,11 +48198,15 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
       //    E914-47DA-95CA-C5AB0DC85B11" but ignoring any leading and
       //    trailing whitespace, the client MUST _Fail the WebSocket
       //    Connection_.
-      const secWSAccept = response.headersList.get('Sec-WebSocket-Accept')
-      const digest = crypto.hash('sha1', keyValue + uid, 'base64')
-      if (secWSAccept !== digest) {
-        failWebsocketConnection(handler, 1002, 'Incorrect hash received in Sec-WebSocket-Accept header.')
-        return
+      //    For H2, implementations "do not do the processing of the Sec-WebSocket-Key and
+      //    Sec-WebSocket-Accept header fields". https://datatracker.ietf.org/doc/html/rfc8441#section-5
+      if (response.socket.session == null) {
+        const secWSAccept = response.headersList.get('Sec-WebSocket-Accept')
+        const digest = crypto.hash('sha1', keyValue + uid, 'base64')
+        if (secWSAccept !== digest) {
+          failHandshake(handler, response, 1002, 'Incorrect hash received in Sec-WebSocket-Accept header.')
+          return
+        }
       }
 
       // 5. If the response includes a |Sec-WebSocket-Extensions| header
@@ -46848,7 +48223,7 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
         extensions = parseExtensions(secExtension)
 
         if (!extensions.has('permessage-deflate')) {
-          failWebsocketConnection(handler, 1002, 'Sec-WebSocket-Extensions header does not match.')
+          failHandshake(handler, response, 1002, 'Sec-WebSocket-Extensions header does not match.')
           return
         }
       }
@@ -46868,10 +48243,17 @@ function establishWebSocketConnection (url, protocols, client, handler, options)
         // is specified, the server needs to include the same field and one of
         // the selected subprotocol values in its response for the connection to
         // be established.
-        if (!requestProtocols.includes(secProtocol)) {
-          failWebsocketConnection(handler, 1002, 'Protocol was not set in the opening handshake.')
+        if (requestProtocols === null || !requestProtocols.includes(secProtocol)) {
+          failHandshake(handler, response, 1002, 'Protocol was not set in the opening handshake.')
           return
         }
+      }
+
+      // For H2, "Orderly TCP-level closures are represented as END_STREAM flags", so
+      // end our side of the stream when the server ends its side, as a TCP socket would.
+      // https://datatracker.ietf.org/doc/html/rfc8441#section-5
+      if (response.socket.session != null) {
+        response.socket.allowHalfOpen = false
       }
 
       response.socket.on('data', handler.onSocketData)
@@ -46962,6 +48344,16 @@ function closeWebSocketConnection (object, code, reason, validate = false) {
     // Set object’s ready state to CLOSING (2).
     object.readyState = states.CLOSING
   }
+}
+
+function failHandshake (handler, response, code, reason, cause) {
+  // The H2 upgrade request has already completed and handed off its stream.
+  // Aborting the request cannot close that stream after handshake validation fails.
+  if (response.socket?.session != null && !response.socket.destroyed) {
+    response.socket.destroy()
+  }
+
+  failWebsocketConnection(handler, code, reason, cause)
 }
 
 /**
@@ -47141,6 +48533,8 @@ const { webidl } = __nccwpck_require__(7879)
 const { kEnumerableProperty } = __nccwpck_require__(3440)
 const { kConstruct } = __nccwpck_require__(6443)
 
+let createFastMessageEvent
+
 /**
  * @see https://html.spec.whatwg.org/multipage/comms.html#messageevent
  */
@@ -47167,31 +48561,31 @@ class MessageEvent extends Event {
   }
 
   get data () {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     return this.#eventInit.data
   }
 
   get origin () {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     return this.#eventInit.origin
   }
 
   get lastEventId () {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     return this.#eventInit.lastEventId
   }
 
   get source () {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     return this.#eventInit.source
   }
 
   get ports () {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     if (!Object.isFrozen(this.#eventInit.ports)) {
       Object.freeze(this.#eventInit.ports)
@@ -47210,7 +48604,7 @@ class MessageEvent extends Event {
     source = null,
     ports = []
   ) {
-    webidl.brandCheck(this, MessageEvent)
+    webidl.brandCheck(this, webidl.is.MessageEvent)
 
     webidl.argumentLengthCheck(arguments, 1, 'MessageEvent.initMessageEvent')
 
@@ -47219,20 +48613,23 @@ class MessageEvent extends Event {
     })
   }
 
-  static createFastMessageEvent (type, init) {
-    const messageEvent = new MessageEvent(kConstruct, type, init)
-    messageEvent.#eventInit = init
-    messageEvent.#eventInit.data ??= null
-    messageEvent.#eventInit.origin ??= ''
-    messageEvent.#eventInit.lastEventId ??= ''
-    messageEvent.#eventInit.source ??= null
-    messageEvent.#eventInit.ports ??= []
-    return messageEvent
+  static {
+    createFastMessageEvent = (type, init) => {
+      const messageEvent = new MessageEvent(kConstruct, type, init)
+      messageEvent.#eventInit = init
+      messageEvent.#eventInit.data ??= null
+      messageEvent.#eventInit.origin ??= ''
+      messageEvent.#eventInit.lastEventId ??= ''
+      messageEvent.#eventInit.source ??= null
+      messageEvent.#eventInit.ports ??= []
+      return messageEvent
+    }
+
+    webidl.is.MessageEvent = (arg) => {
+      return arg != null && typeof arg === 'object' && #eventInit in arg
+    }
   }
 }
-
-const { createFastMessageEvent } = MessageEvent
-delete MessageEvent.createFastMessageEvent
 
 /**
  * @see https://websockets.spec.whatwg.org/#the-closeevent-interface
@@ -47254,21 +48651,27 @@ class CloseEvent extends Event {
   }
 
   get wasClean () {
-    webidl.brandCheck(this, CloseEvent)
+    webidl.brandCheck(this, webidl.is.CloseEvent)
 
     return this.#eventInit.wasClean
   }
 
   get code () {
-    webidl.brandCheck(this, CloseEvent)
+    webidl.brandCheck(this, webidl.is.CloseEvent)
 
     return this.#eventInit.code
   }
 
   get reason () {
-    webidl.brandCheck(this, CloseEvent)
+    webidl.brandCheck(this, webidl.is.CloseEvent)
 
     return this.#eventInit.reason
+  }
+
+  static {
+    webidl.is.CloseEvent = (arg) => {
+      return arg != null && typeof arg === 'object' && #eventInit in arg
+    }
   }
 }
 
@@ -47290,33 +48693,39 @@ class ErrorEvent extends Event {
   }
 
   get message () {
-    webidl.brandCheck(this, ErrorEvent)
+    webidl.brandCheck(this, webidl.is.ErrorEvent)
 
     return this.#eventInit.message
   }
 
   get filename () {
-    webidl.brandCheck(this, ErrorEvent)
+    webidl.brandCheck(this, webidl.is.ErrorEvent)
 
     return this.#eventInit.filename
   }
 
   get lineno () {
-    webidl.brandCheck(this, ErrorEvent)
+    webidl.brandCheck(this, webidl.is.ErrorEvent)
 
     return this.#eventInit.lineno
   }
 
   get colno () {
-    webidl.brandCheck(this, ErrorEvent)
+    webidl.brandCheck(this, webidl.is.ErrorEvent)
 
     return this.#eventInit.colno
   }
 
   get error () {
-    webidl.brandCheck(this, ErrorEvent)
+    webidl.brandCheck(this, webidl.is.ErrorEvent)
 
     return this.#eventInit.error
+  }
+
+  static {
+    webidl.is.ErrorEvent = (arg) => {
+      return arg != null && typeof arg === 'object' && #eventInit in arg
+    }
   }
 }
 
@@ -47672,7 +49081,12 @@ class PerMessageDeflate {
 
         if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
           callback(new MessageSizeExceededError())
+          // The inflater may still hold buffered input that can emit a late
+          // zlib error. Remove the data listener, then deterministically stop
+          // the stream so a subsequent 'error' cannot fire without a listener
+          // (which would terminate the process as an unhandled error event).
           this.#inflate.removeAllListeners()
+          this.#inflate.destroy()
           this.#inflate = null
           return
         }
@@ -48085,6 +49499,8 @@ class ByteParser extends Writable {
   consumeFragments () {
     const fragments = this.#fragments
 
+    this.#info.compressed = false
+
     if (fragments.length === 1) {
       // single fragment
       this.#fragmentsBytes = 0
@@ -48372,6 +49788,8 @@ function createInheritableDOMException () {
   })
 }
 
+let createUnvalidatedWebSocketError
+
 class WebSocketError extends createInheritableDOMException() {
   #closeCode
   #reason
@@ -48423,16 +49841,19 @@ class WebSocketError extends createInheritableDOMException() {
    * @param {number|null} code
    * @param {string} reason
    */
-  static createUnvalidatedWebSocketError (message, code, reason) {
-    const error = new WebSocketError(message, kConstruct)
-    error.#closeCode = code
-    error.#reason = reason
-    return error
+  static {
+    createUnvalidatedWebSocketError = (message, code, reason) => {
+      const error = new WebSocketError(message, kConstruct)
+      error.#closeCode = code
+      error.#reason = reason
+      return error
+    }
+
+    webidl.is.WebSocketError = (arg) => {
+      return arg != null && typeof arg === 'object' && #reason in arg
+    }
   }
 }
-
-const { createUnvalidatedWebSocketError } = WebSocketError
-delete WebSocketError.createUnvalidatedWebSocketError
 
 Object.defineProperties(WebSocketError.prototype, {
   closeCode: kEnumerableProperty,
@@ -48444,8 +49865,6 @@ Object.defineProperties(WebSocketError.prototype, {
     configurable: true
   }
 })
-
-webidl.is.WebSocketError = webidl.util.MakeTypeAssertion(WebSocketError)
 
 module.exports = { WebSocketError, createUnvalidatedWebSocketError }
 
@@ -48491,9 +49910,9 @@ class WebSocketStream {
   /** @type {ReadableStreamDefaultController} */
   #readableStreamController
 
-  // Each WebSocketStream object has an associated writable stream , which is a WritableStream .
-  /** @type {WritableStream} */
-  #writableStream
+  // Retain the controller so the writable stream can be errored while locked.
+  /** @type {WritableStreamDefaultController} */
+  #writableStreamController
 
   // Each WebSocketStream object has an associated boolean handshake aborted , which is initially false.
   #handshakeAborted = false
@@ -48519,7 +49938,9 @@ class WebSocketStream {
 
       this.#handler.socket.destroy()
     },
-    onSocketClose: () => this.#onSocketClose(),
+    // When the WebSocket connection is closed for a WebSocketStream stream, possibly cleanly, the user agent must
+    // queue a global task on the WebSocket task source given stream ’s relevant global object to run the following substeps:
+    onSocketClose: () => queueMicrotask(() => this.#onSocketClose()),
     onPing: () => {},
     onPong: () => {},
 
@@ -48703,11 +50124,15 @@ class WebSocketStream {
       const frame = new WebsocketFrameSend(data)
 
       this.#handler.socket.write(frame.createFrame(opcode), () => {
+        // 6.3. Queue a global task on the WebSocket task source given stream ’s relevant global object to resolve promise with undefined.
         promise.resolve(undefined)
       })
+    } else {
+      // 6.3. Queue a global task on the WebSocket task source given stream ’s relevant global object to resolve promise with undefined.
+      promise.resolve(undefined)
     }
 
-    // 6.3. Queue a global task on the WebSocket task source given stream ’s relevant global object to resolve promise with undefined.
+    // 7. Return promise.
     return promise.promise
   }
 
@@ -48735,7 +50160,7 @@ class WebSocketStream {
     // This is done in the opening handshake.
 
     // 3. Let extensions be the extensions in use .
-    const extensions = parsedExtensions ?? ''
+    const extensions = response.headersList.get('sec-websocket-extensions') ?? ''
 
     // 4. Let protocol be the subprotocol in use .
     const protocol = response.headersList.get('sec-websocket-protocol') ?? ''
@@ -48748,6 +50173,7 @@ class WebSocketStream {
       start: (controller) => {
         this.#readableStreamController = controller
       },
+      pull: () => this.#pull(),
       cancel: (reason) => this.#cancel(reason)
     })
 
@@ -48757,6 +50183,9 @@ class WebSocketStream {
     // 12. Let writable be a new WritableStream .
     // 13. Set up writable with writeAlgorithm , closeAlgorithm , and abortAlgorithm .
     const writable = new WritableStream({
+      start: (controller) => {
+        this.#writableStreamController = controller
+      },
       write: (chunk) => this.#write(chunk),
       close: () => closeWebSocketConnection(this.#handler, null, null),
       abort: (reason) => this.#closeUsingReason(reason)
@@ -48764,9 +50193,6 @@ class WebSocketStream {
 
     // Set stream ’s readable stream to readable .
     this.#readableStream = readable
-
-    // Set stream ’s writable stream to writable .
-    this.#writableStream = writable
 
     // Resolve stream ’s opened promise with WebSocketOpenInfo «[ " extensions " → extensions , " protocol " → protocol , " readable " → readable , " writable " → writable ]».
     this.#openedPromise.resolve({
@@ -48807,6 +50233,9 @@ class WebSocketStream {
     this.#readableStreamController.enqueue(chunk)
 
     // 4. Apply backpressure to the WebSocket.
+    if (this.#readableStreamController.desiredSize <= 0) {
+      this.#handler.socket.pause()
+    }
   }
 
   /** @type {import('../websocket').Handler['onSocketClose']} */
@@ -48840,7 +50269,7 @@ class WebSocketStream {
     // 1006.
     let code = result?.code ?? 1005
 
-    if (!this.#handler.closeState.has(sentCloseFrameState.SENT) && !this.#handler.closeState.has(sentCloseFrameState.RECEIVED)) {
+    if (!this.#handler.closeState.has(sentCloseFrameState.RECEIVED)) {
       code = 1006
     }
 
@@ -48853,9 +50282,7 @@ class WebSocketStream {
       readableStreamClose(this.#readableStreamController)
 
       // 6.2. Error stream ’s writable stream with an " InvalidStateError " DOMException indicating that a closed WebSocketStream cannot be written to.
-      if (!this.#writableStream.locked) {
-        this.#writableStream.abort(new DOMException('A closed WebSocketStream cannot be written to', 'InvalidStateError'))
-      }
+      this.#writableStreamController.error(new DOMException('A closed WebSocketStream cannot be written to', 'InvalidStateError'))
 
       // 6.3. Resolve stream ’s closed promise with WebSocketCloseInfo «[ " closeCode " → code , " reason " → reason ]».
       this.#closedPromise.resolve({
@@ -48872,7 +50299,7 @@ class WebSocketStream {
       this.#readableStreamController?.error(error)
 
       // 7.3. Error stream ’s writable stream with error .
-      this.#writableStream?.abort(error)
+      this.#writableStreamController?.error(error)
 
       // 7.4. Reject stream ’s closed promise with error .
       this.#closedPromise.reject(error)
@@ -48898,6 +50325,11 @@ class WebSocketStream {
     // 4. Close the WebSocket with stream , code , and reasonString . If this throws an exception,
     //    discard code and reasonString and close the WebSocket with stream .
     closeWebSocketConnection(this.#handler, code, reasonString)
+  }
+
+  // To pull bytes from a WebSocketStream stream , if stream is currently applying backpressure, release backpressure.
+  #pull () {
+    this.#handler.socket.resume()
   }
 
   //  To cancel a WebSocketStream stream given reason , close using reason giving stream and reason .
@@ -49344,6 +50776,8 @@ const { channels } = __nccwpck_require__(2414)
 const kRef = Symbol.for('nodejs.ref')
 const kUnref = Symbol.for('nodejs.unref')
 
+let ping
+
 function getSocketAddress (socket) {
   if (typeof socket?.address === 'function') {
     return socket.address()
@@ -49514,16 +50948,14 @@ class WebSocket extends EventTarget {
     this.#binaryType = 'blob'
   }
 
+  // TODO: remove this
   [kRef] () {
-    webidl.brandCheck(this, WebSocket)
-
     this.#refed = true
     this.#handler.socket?.ref?.()
   }
 
+  // TODO: remove this
   [kUnref] () {
-    webidl.brandCheck(this, WebSocket)
-
     this.#refed = false
     this.#handler.socket?.unref?.()
   }
@@ -49534,7 +50966,7 @@ class WebSocket extends EventTarget {
    * @param {string|undefined} reason
    */
   close (code = undefined, reason = undefined) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     const prefix = 'WebSocket.close'
 
@@ -49561,7 +50993,7 @@ class WebSocket extends EventTarget {
    * @param {NodeJS.TypedArray|ArrayBuffer|Blob|string} data
    */
   send (data) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     const prefix = 'WebSocket.send'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -49655,45 +51087,45 @@ class WebSocket extends EventTarget {
   }
 
   get readyState () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     // The readyState getter steps are to return this's ready state.
     return this.#handler.readyState
   }
 
   get bufferedAmount () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#bufferedAmount
   }
 
   get url () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     // The url getter steps are to return this's url, serialized.
     return URLSerializer(this.#url)
   }
 
   get extensions () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#extensions
   }
 
   get protocol () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#protocol
   }
 
   get onopen () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#events.open
   }
 
   set onopen (fn) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     if (this.#events.open) {
       this.removeEventListener('open', this.#events.open)
@@ -49710,13 +51142,13 @@ class WebSocket extends EventTarget {
   }
 
   get onerror () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#events.error
   }
 
   set onerror (fn) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     if (this.#events.error) {
       this.removeEventListener('error', this.#events.error)
@@ -49733,13 +51165,13 @@ class WebSocket extends EventTarget {
   }
 
   get onclose () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#events.close
   }
 
   set onclose (fn) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     if (this.#events.close) {
       this.removeEventListener('close', this.#events.close)
@@ -49756,13 +51188,13 @@ class WebSocket extends EventTarget {
   }
 
   get onmessage () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#events.message
   }
 
   set onmessage (fn) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     if (this.#events.message) {
       this.removeEventListener('message', this.#events.message)
@@ -49779,13 +51211,13 @@ class WebSocket extends EventTarget {
   }
 
   get binaryType () {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     return this.#binaryType
   }
 
   set binaryType (type) {
-    webidl.brandCheck(this, WebSocket)
+    webidl.brandCheck(this, webidl.is.WebSocket)
 
     if (type !== 'blob' && type !== 'arraybuffer') {
       this.#binaryType = 'blob'
@@ -49970,32 +51402,35 @@ class WebSocket extends EventTarget {
     }
   }
 
-  /**
-   * @param {WebSocket} ws
-   * @param {Buffer|undefined} buffer
-   */
-  static ping (ws, buffer) {
-    if (Buffer.isBuffer(buffer)) {
-      if (buffer.length > 125) {
-        throw new TypeError('A PING frame cannot have a body larger than 125 bytes.')
+  static {
+    /**
+     * @param {WebSocket} ws
+     * @param {Buffer|undefined} buffer
+     */
+    ping = (ws, buffer) => {
+      if (Buffer.isBuffer(buffer)) {
+        if (buffer.length > 125) {
+          throw new TypeError('A PING frame cannot have a body larger than 125 bytes.')
+        }
+      } else if (buffer !== undefined) {
+        throw new TypeError('Expected buffer payload')
       }
-    } else if (buffer !== undefined) {
-      throw new TypeError('Expected buffer payload')
+
+      // An endpoint MAY send a Ping frame any time after the connection is
+      // established and before the connection is closed.
+      const readyState = ws.#handler.readyState
+
+      if (isEstablished(readyState) && !isClosing(readyState) && !isClosed(readyState)) {
+        const frame = new WebsocketFrameSend(buffer)
+        ws.#handler.socket.write(frame.createFrame(opcodes.PING))
+      }
     }
 
-    // An endpoint MAY send a Ping frame any time after the connection is
-    // established and before the connection is closed.
-    const readyState = ws.#handler.readyState
-
-    if (isEstablished(readyState) && !isClosing(readyState) && !isClosed(readyState)) {
-      const frame = new WebsocketFrameSend(buffer)
-      ws.#handler.socket.write(frame.createFrame(opcodes.PING))
+    webidl.is.WebSocket = (arg) => {
+      return arg != null && typeof arg === 'object' && #handler in arg
     }
   }
 }
-
-const { ping } = WebSocket
-Reflect.deleteProperty(WebSocket, 'ping')
 
 // https://websockets.spec.whatwg.org/#dom-websocket-connecting
 WebSocket.CONNECTING = WebSocket.prototype.CONNECTING = states.CONNECTING
@@ -59450,7 +60885,7 @@ function buildChangelog(diffInfo, origPrs, options) {
     const transformedCategorized = buildCategorizedOutput(flatCategories);
     setOutput('categorized', JSON.stringify(transformedCategorized));
     // construct final changelog
-    const changelogStrings = buildChangelogStrings(flatCategories, prStrings);
+    const changelogStrings = buildChangelogStrings(categories, prStrings);
     core_info(`✒️ Wrote ${changelogStrings.categorized.length} categorized pull requests down`);
     core_info(`✒️ Wrote ${changelogStrings.uncategorized.length} non categorized pull requests down`);
     core_info(`✒️ Wrote ${changelogStrings.open.length} open pull requests down`);
@@ -59544,12 +60979,11 @@ function buildPrStringsAndFillCategoryEntries(prInfoMap, ignoredLabels, categori
         ignoredList: ignoredPrs
     };
 }
-function buildChangelogStrings(flatCategories, prStrings) {
+function buildChangelogStrings(categories, prStrings) {
     const { categorizedList, uncategorizedList, openList, ignoredList } = prStrings;
     let changelogCategorized = '';
-    for (const category of flatCategories) {
-        const pullRequests = category.entries || [];
-        changelogCategorized += buildCategorizedChangelogString(category, pullRequests);
+    for (const category of categories) {
+        changelogCategorized += buildCategoryChangelogString(category);
     }
     if (isDebug()) {
         for (const pr of categorizedList) {
@@ -59693,11 +61127,20 @@ function categorizePr(category, pr) {
     }
     return matched;
 }
-function buildCategorizedChangelogString(category, pullRequests) {
+function buildCategoryChangelogString(category) {
+    const content = buildCategorizedChangelogString(category, category.entries || [], category.collapsed ? '' : category.title) +
+        (category.categories || []).map(buildCategoryChangelogString).join('');
+    if (!category.collapsed || !content) {
+        return content;
+    }
+    const title = category.title.replace(/^#{1,6}\s+/, '');
+    return `<details>\n<summary>${title}</summary>\n\n${content}</details>\n\n`;
+}
+function buildCategorizedChangelogString(category, pullRequests, title) {
     let categorizedString = '';
     if (pullRequests.length > 0 || hasChildWithEntries(category)) {
-        if (category.title) {
-            categorizedString = `${categorizedString + category.title}\n\n`;
+        if (title) {
+            categorizedString = `${categorizedString + title}\n\n`;
         }
         for (const pr of pullRequests) {
             categorizedString = `${categorizedString + pr}\n`;
@@ -59705,8 +61148,8 @@ function buildCategorizedChangelogString(category, pullRequests) {
         categorizedString = `${categorizedString}\n`; // add space between sections
     }
     else if (category.empty_content !== undefined) {
-        if (category.title) {
-            categorizedString = `${categorizedString + category.title}\n\n`;
+        if (title) {
+            categorizedString = `${categorizedString + title}\n\n`;
         }
         categorizedString = `${categorizedString + category.empty_content}\n\n`;
     }
