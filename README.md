@@ -185,7 +185,8 @@ jobs:
                 },
                 {
                     "title": "## 📦 Dependencies",
-                    "labels": ["dependencies"]
+                    "labels": ["dependencies"],
+                    "collapsed": true
                 }
               ]
             }
@@ -301,7 +302,7 @@ For **monorepo setups**, you can filter commits by path to generate changelogs o
 | `toTag`                   | Defines until which tag the changelog will consider merged pull requests  (can be a tag or a valid git ref)                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `path`                    | Allows to specify an alternative sub directory, to use as base                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `token`                   | Alternative config to specify token. You should prefer `env.GITHUB_TOKEN` instead though                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `baseUrl`                 | Alternative config to specify base url for GitHub Enterprise authentication. Default value set to `https://api.github.com`                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `baseUrl`                 | Alternative config to specify base url for GitHub Enterprise authentication. Default value set to `https://api.github.com`. For `gitea` set this to the web url of your instance (without `/api/v1`), defaulting to `https://gitea.com`                                                                                                                                                                                                                                                                                                                |
 | `includeOpen`             | Enables to also fetch currently open PRs. Default: false                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `ignorePreReleases`       | Allows to ignore pre-releases for changelog generation (E.g. for 1.0.1... 1.0.0-rc02 <- ignore, 1.0.0 <- pick). Only used if `fromTag` was not specified. Default: false                                                                                                                                                                                                                                                                                                                                                    |
 | `failOnError`             | Defines if the action will result in a build failure if problems occurred. Default: false                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -619,6 +620,7 @@ Table of supported placeholders allowed to be used in the `commit_template` conf
 |--------------------|----------------------------------------------------------------------------------------------------|
 | `#{{NUMBER}}`      | Always 0.                                                                                          |
 | `#{{TITLE}}`       | The commit summary.                                                                                |
+| `#{{URL}}`         | Url linking to the commit. Empty in `offlineMode`.                                                 |
 | `#{{STATUS}}`      | Always `merged`.                                                                                   |
 | `#{{CREATED_AT}}`  | The ISO time of the commit.                                                                        |
 | `#{{MERGE_SHA}}`   | The commit SHA.                                                                                    |
@@ -635,6 +637,7 @@ Table of descriptions for the `configuration.json` options to configure the resu
 | categories                           | An array of `category` specifications, offering a flexible way to group changes into categories.                                                                                                                                                                                                                                      |
 | category.key                         | Optional key used for the `categorized` json output.                                                                                                                                                                                                                                                                                  |
 | category.title                       | The display name of a category in the changelog.                                                                                                                                                                                                                                                                                      |
+| category.collapsed                   | Wrap the category and its nested categories in a closed `<details>` block. Markdown heading markers in `title` are removed from the summary. Empty categories remain omitted unless `empty_content` is set. Default: `false`.                                                                                                    |
 | category.labels                      | An array of labels, to match pull request labels against. If any PR label matches any category label, the pull request will show up under this category. (See `exhaustive` to change this)                                                                                                                                            |
 | category.exclude_labels              | Similar to `labels`, an array of labels to match PRs against, but if a match occurs the PR is excluded from this category.                                                                                                                                                                                                            |
 | category.exhaustive                  | Will require all labels defined within this category to be present on the matching PR.                                                                                                                                                                                                                                                |
@@ -782,13 +785,14 @@ Starting with v4.1.0 the action is also compatible with [gitea](https://github.c
 > [!WARNING]  
 > The API from gitea does not allow to retrieve the `diff` via its API, requiring the repo to be checked out
 
-The API for gitea is equal to the one from GitHub, however it requires the `platform` to be specified.
+The API for gitea is equal to the one from GitHub, however it requires the `platform` to be specified. For self-hosted instances also set `baseUrl` to the instance's web url (without `/api/v1`), it is used for API requests and the `RELEASE_DIFF` link. When running on Gitea Actions itself, `${{ github.server_url }}` resolves to that url.
 
 ```yml
 - name: Build Changelog
   uses: https://github.com/mikepenz/release-changelog-builder-action@v6
   with:
     platform: "gitea" # gitea or GitHub, default is GitHub
+    baseUrl: "https://gitea.example.com" # web url of your gitea instance (without /api/v1), default is https://gitea.com
     configuration: "configuration.json"
     token: ${{ secrets.GITEA_TOKEN }}
 ```

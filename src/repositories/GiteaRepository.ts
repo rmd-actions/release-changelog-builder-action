@@ -20,12 +20,14 @@ export class GiteaRepository extends BaseRepository {
   }
 
   get homeUrl(): string {
-    return 'https://gitea.com'
+    // set (and trailing-slash trimmed) in the constructor
+    return this.url as string
   }
 
   constructor(token: string, url: string | undefined, repositoryPath: string) {
     super(token, url, repositoryPath)
-    this.url = url || this.defaultUrl
+    // the `baseUrl` of a gitea instance is its web root (gitea-js appends `/api/v1` itself)
+    this.url = (url || this.defaultUrl).replace(/\/+$/, '')
     this.api = giteaApi(this.url, {
       token
     })
@@ -68,8 +70,8 @@ export class GiteaRepository extends BaseRepository {
       number: pr.number || 0,
       title: pr.title || '',
       htmlURL: pr.html_url || '',
-      baseBranch: pr.base?.repo?.default_branch || '',
-      branch: pr.merge_base || '',
+      baseBranch: pr.base?.ref || '',
+      branch: pr.head?.ref || '',
       mergedAt: pr.merged_at ? moment(pr.merged_at) : undefined,
       mergeCommitSha: pr.merge_commit_sha || '',
       author: pr.user?.login || '',
@@ -113,6 +115,7 @@ export class GiteaRepository extends BaseRepository {
       commits: commitInfo.count,
       commitInfo: commitInfo.commits.map(commit => ({
         sha: commit.sha,
+        htmlURL: `${this.homeUrl}/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commit/${commit.sha}`,
         summary: commit.subject.split('\n')[0],
         message: commit.message,
         author: commit.author,
