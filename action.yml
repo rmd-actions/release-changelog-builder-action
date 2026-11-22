@@ -40,6 +40,9 @@ inputs:
   fetchReviews:
     description: 'Will enable fetching the reviews (comments) attached to the PR'
     default: "false"
+  fetchNewContributors:
+    description: 'Will enable identifying the authors whose first pull request was merged in this release (does 1 additional API request per 20 PR authors). Only supported for GitHub in `PR` and `HYBRID` mode.'
+    default: "false"
   mode:
     description: 'Defines the mode used to retrieve the information. Available options: [`PR`, `COMMIT`, `HYBRID`]. Defaults to `PR`.'
   commitMode:
@@ -54,7 +57,9 @@ inputs:
     description: 'Defines the token to use to execute the git API requests with, uses `env.GITHUB_TOKEN` by default'
     default: ${{ github.token }}
   baseUrl:
-    description: 'Defines the base url for GitHub Enterprise authentication, uses `https://api.github.com` by default'
+    description: 'Defines the base url for GitHub Enterprise authentication, uses `https://api.github.com` by default. For `gitea` set this to the web url of your instance (without `/api/v1`), uses `https://gitea.com` by default'
+  homeUrl:
+    description: 'Optional web url of the instance, used for links such as `RELEASE_DIFF`. By default derived from `baseUrl` (e.g. `https://api.github.com` -> `https://github.com`, `https://github.example.com/api/v3` -> `https://github.example.com`).'
   exportCache:
     description: 'If enabled, the action will export the collected data to the cache. This is disabled by default. Can be passed to a follow up run via `cache`.'
     default: "false"
@@ -73,6 +78,8 @@ outputs:
     description: The built release changelog built from the merged pull requests
   contributors:
     description: A comma separated list of contributors (GitHub usernames) who contributed to the release
+  new_contributors:
+    description: A comma separated list of contributors (GitHub usernames) whose first pull request was merged in this release. Requires `fetchNewContributors` to be enabled.
   pull_requests:
     description: A comma seperated list of PR numbers that were merged
   owner:

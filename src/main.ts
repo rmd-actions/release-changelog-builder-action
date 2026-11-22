@@ -69,6 +69,7 @@ async function run(): Promise<void> {
 
     // read in repository inputs
     const baseUrl = core.getInput('baseUrl')
+    const homeUrl = core.getInput('homeUrl')
     const token = core.getInput('token') || process.env.GITHUB_TOKEN || ''
     if (token) core.setSecret(token)
     const owner = core.getInput('owner') || github.context.repo.owner
@@ -84,6 +85,7 @@ async function run(): Promise<void> {
     const fetchReviewers = core.getInput('fetchReviewers') === 'true'
     const fetchReleaseInformation = core.getInput('fetchReleaseInformation') === 'true'
     const fetchReviews = core.getInput('fetchReviews') === 'true'
+    const fetchNewContributors = core.getInput('fetchNewContributors') === 'true'
     const exportCache = core.getInput('exportCache') === 'true'
     const exportOnly = core.getInput('exportOnly') === 'true'
     const cache = core.getInput('cache')
@@ -96,7 +98,7 @@ async function run(): Promise<void> {
     // Use OfflineRepository if offline mode is enabled, otherwise use the selected platform
     const repositoryUtils = offlineMode
       ? new OfflineRepository(repositoryPath)
-      : new supportedPlatform[platform](token, baseUrl, repositoryPath)
+      : new supportedPlatform[platform](token, baseUrl, repositoryPath, homeUrl)
     const result = await new ReleaseNotesBuilder(
       baseUrl,
       repositoryUtils,
@@ -117,7 +119,8 @@ async function run(): Promise<void> {
       exportOnly,
       cache,
       configuration,
-      includeOnlyPaths
+      includeOnlyPaths,
+      fetchNewContributors
     ).build()
 
     core.setOutput('changelog', result)

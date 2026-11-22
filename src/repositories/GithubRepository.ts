@@ -96,6 +96,7 @@ export class GithubRepository extends BaseRepository {
         .filter(commit => commit.sha)
         .map(commit => ({
           sha: commit.sha || '',
+          htmlURL: commit.html_url || '',
           summary: commit.commit.message.split('\n')[0],
           message: commit.commit.message,
           author: commit.author?.login || commit.commit.author?.name || '',
@@ -214,18 +215,59 @@ export class GithubRepository extends BaseRepository {
     pr.reviews = prReviews
   }
 
+  async getNewContributors(owner: string, repo: string, firstMerges: Map<string, moment.Moment>): Promise<Set<string>> {
+    const newContributors = new Set<string>()
+    const authors = Array.from(firstMerges.keys())
+
+    // batch multiple searches into a single GraphQL request, the search only needs the count of matching PRs
+    const batchSize = 20
+    for (let i = 0; i < authors.length; i += batchSize) {
+      const batch = authors.slice(i, i + batchSize)
+      const variables: Record<string, string> = {}
+      const searches = batch.map((author, index) => {
+        const mergedBefore = firstMerges.get(author)?.toISOString()
+        variables[`q${index}`] = `repo:${owner}/${repo} is:pr is:merged author:${author} merged:<${mergedBefore}`
+        return `a${index}: search(type: ISSUE, query: $q${index}, first: 0) { issueCount }`
+      })
+      const declarations = batch.map((_, index) => `$q${index}: String!`).join(', ')
+
+      const result: Record<string, {issueCount: number} | undefined> = await this.octokit.graphql(
+        `query(${declarations}) { ${searches.join(' ')} }`,
+        variables
+      )
+      batch.forEach((author, index) => {
+        if (result[`a${index}`]?.issueCount === 0) {
+          newContributors.add(author)
+        }
+      })
+    }
+
+    core.info(`ℹ️ Identified ${newContributors.size} new contributor(s) out of ${authors.length} author(s) for ${owner}/${repo}`)
+    return newContributors
+  }
+
   get defaultUrl(): string {
     return 'https://api.github.com'
   }
 
   get homeUrl(): string {
-    return this.url?.replace('api.', '') || 'https://github.com'
+    if (this.homeUrlOverride) {
+      return this.homeUrlOverride
+    }
+    const url = (this.url || this.defaultUrl).replace(/\/+$/, '')
+    // GitHub Enterprise Server serves its REST API below `/api/v3` of the web url
+    const enterpriseServerUrl = url.replace(/\/api(?:\/v3)?$/i, '')
+    if (enterpriseServerUrl !== url) {
+      return enterpriseServerUrl
+    }
+    // github.com and GitHub Enterprise Cloud with data residency (`*.ghe.com`) serve their API from an `api.` subdomain
+    return url.replace(/^(https?:\/\/)api\./i, '$1')
   }
 
   private octokit: Octokit
 
-  constructor(token: string, url: string | undefined, repositoryPath: string) {
-    super(token, url, repositoryPath)
+  constructor(token: string, url: string | undefined, repositoryPath: string, homeUrl?: string) {
+    super(token, url, repositoryPath, homeUrl)
     this.url = url || this.defaultUrl
 
     // load octokit instance

@@ -123,3 +123,132 @@ test('Match multiple labels exhaustive for category', async () => {
     `## Core\n\n- Core Ticket\n\n### 🚀 Features\n\n- Core Feature Ticket\n- Mobile & Core Feature Ticket\n\n### 🧪 Bug\n\n- Core Bug Ticket\n- Mobile & Core Bug Ticket\n\n#### 🧪 Bug Bug\n\n- Mobile & Core Bug Bug Ticket\n\n## Mobile\n\n\n### 🚀 Features\n\n- Mobile Feature Ticket\n\n### 🧪 Bug\n\n- Mobile Bug Ticket\n\n`
   )
 })
+
+test('Collapsed categories contain their entries and nested categories', () => {
+  const customConfig = {...DefaultConfiguration, pr_template: '- #{{TITLE}}'}
+  customConfig.categories = [
+    {
+      title: '## Dependencies',
+      labels: ['dependency'],
+      collapsed: true,
+      categories: [{title: '### Runtime', labels: ['runtime']}]
+    },
+    {title: '## Features', labels: ['feature']},
+    {title: '## Skipped', labels: ['missing'], collapsed: true},
+    {title: '## Empty', labels: ['missing'], collapsed: true, empty_content: '- No changes'}
+  ]
+
+  const changelog = buildChangelogTest(
+    customConfig,
+    [
+      buildPullRequeset(1, 'Runtime dependency', ['dependency', 'runtime']),
+      buildPullRequeset(2, 'Direct dependency', ['dependency']),
+      buildPullRequeset(3, 'New feature', ['feature'])
+    ],
+    repositoryUtils
+  )
+
+  expect(changelog).toStrictEqual(
+    '<details>\n<summary>Dependencies</summary>\n\n- Direct dependency\n\n### Runtime\n\n- Runtime dependency\n\n</details>\n\n' +
+      '## Features\n\n- New feature\n\n' +
+      '<details>\n<summary>Empty</summary>\n\n- No changes\n\n</details>\n\n'
+  )
+})
+
+test('Consuming child category keeps the PR out of following sibling and top level categories', () => {
+  const customConfig = {...DefaultConfiguration, pr_template: '- #{{TITLE}}'}
+  customConfig.categories = [
+    {
+      title: '## Core',
+      labels: ['core'],
+      categories: [
+        {
+          title: '### Breaking',
+          labels: ['breaking'],
+          categories: [{title: '#### API', labels: ['api'], consume: true}]
+        },
+        {title: '### Security', labels: ['security'], consume: true},
+        {title: '### Features', labels: ['feature']}
+      ]
+    },
+    {title: '## Features', labels: ['feature']}
+  ]
+
+  const changelog = buildChangelogTest(
+    customConfig,
+    [
+      buildPullRequeset(1, 'Breaking API feature', ['core', 'breaking', 'api', 'feature']),
+      buildPullRequeset(2, 'Security feature', ['core', 'security', 'feature']),
+      buildPullRequeset(3, 'Breaking feature', ['core', 'breaking', 'feature']),
+      buildPullRequeset(4, 'Core feature', ['core', 'feature'])
+    ],
+    repositoryUtils
+  )
+
+  expect(changelog).toStrictEqual(
+    '## Core\n\n\n' +
+      '### Breaking\n\n- Breaking feature\n\n' +
+      '#### API\n\n- Breaking API feature\n\n' +
+      '### Security\n\n- Security feature\n\n' +
+      '### Features\n\n- Breaking feature\n- Core feature\n\n' +
+      '## Features\n\n- Breaking feature\n- Core feature\n\n'
+  )
+})
+
+test('Child categories respect the configured mode', () => {
+  const customConfig = {...DefaultConfiguration, pr_template: '- #{{TITLE}}'}
+  customConfig.categories = [
+    {
+      title: '## Core',
+      labels: ['core'],
+      categories: [
+        {title: '### Commit Features', labels: ['feature'], mode: 'COMMIT'},
+        {title: '### PR Features', labels: ['feature'], mode: 'PR'}
+      ]
+    },
+    {
+      title: '## Docs',
+      labels: ['docs'],
+      categories: [{title: '### Commit Docs', labels: ['docs'], mode: 'COMMIT'}]
+    }
+  ]
+
+  const changelog = buildChangelogTest(
+    customConfig,
+    [buildPullRequeset(1, 'Core feature', ['core', 'feature']), buildPullRequeset(2, 'Docs update', ['docs'])],
+    repositoryUtils
+  )
+
+  expect(changelog).toStrictEqual('## Core\n\n\n### PR Features\n\n- Core feature\n\n## Docs\n\n- Docs update\n\n')
+})
+
+test('Consumed PRs are counted as categorized', () => {
+  const customConfig = {
+    ...DefaultConfiguration,
+    template: '#{{CHANGELOG}}categorized: #{{CATEGORIZED_COUNT}}, uncategorized: #{{UNCATEGORIZED_COUNT}}',
+    pr_template: '- #{{TITLE}}'
+  }
+  customConfig.categories = [
+    {
+      title: '## Core',
+      labels: ['core'],
+      categories: [{title: '### Breaking', labels: ['breaking'], consume: true}]
+    },
+    {title: '## Mobile', labels: ['mobile'], consume: true},
+    {title: '## Features', labels: ['feature']}
+  ]
+
+  const changelog = buildChangelogTest(
+    customConfig,
+    [
+      buildPullRequeset(1, 'Breaking core feature', ['core', 'breaking', 'feature']),
+      buildPullRequeset(2, 'Mobile feature', ['mobile', 'feature']),
+      buildPullRequeset(3, 'Other', ['other'])
+    ],
+    repositoryUtils
+  )
+
+  expect(changelog).toStrictEqual(
+    '## Core\n\n\n### Breaking\n\n- Breaking core feature\n\n## Mobile\n\n- Mobile feature\n\ncategorized: 2, uncategorized: 1'
+  )
+})

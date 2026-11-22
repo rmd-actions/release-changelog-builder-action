@@ -70,6 +70,7 @@ export class OfflineRepository extends BaseRepository {
       commits: commitInfo.count,
       commitInfo: commitInfo.commits.map(commit => ({
         sha: commit.sha,
+        htmlURL: '', // no platform available offline
         summary: commit.subject.split('\n')[0],
         message: commit.message,
         author: commit.author,
@@ -114,5 +115,11 @@ export class OfflineRepository extends BaseRepository {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getReviews(owner: string, repo: string, pr: PullRequestInfo): Promise<void> {
     core.info(`⚠️ getReviews not supported in offline mode`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getNewContributors(owner: string, repo: string, firstMerges: Map<string, moment.Moment>): Promise<Set<string>> {
+    core.info(`⚠️ getNewContributors not supported in offline mode`);
+    return new Set();
   }
 }

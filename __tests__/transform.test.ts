@@ -4,6 +4,7 @@ import {Configuration, DefaultConfiguration} from '../src/configuration.js'
 import {PullRequestInfo} from '../src/pr-collector/pullRequests.js'
 import {DefaultDiffInfo} from '../src/pr-collector/commits.js'
 import {GithubRepository} from '../src/repositories/GithubRepository.js'
+import {GiteaRepository} from '../src/repositories/GiteaRepository.js'
 import {clear} from '../src/transform.js'
 import {expect, test} from 'vitest'
 import {BaseRepository} from '../src/repositories/BaseRepository.js'
@@ -521,6 +522,130 @@ test('Release Diff', async () => {
   })
 
   expect(resultChangelog).toStrictEqual(`https://github.com/mikepenz/release-changelog-builder-action/compare/v2.8.0...v2.8.1\n`)
+})
+
+test('Release Diff uses the configured gitea instance url', async () => {
+  const customConfig = Object.assign({}, DefaultConfiguration)
+  customConfig.template = '#{{RELEASE_DIFF}}'
+
+  const buildReleaseDiff = (giteaRepository: GiteaRepository): string =>
+    buildChangelog(DefaultDiffInfo, pullRequestsWithLabels, {
+      owner: 'mikepenz',
+      repo: 'release-changelog-builder-action',
+      fromTag: {name: 'v2.8.0'},
+      toTag: {name: 'v2.8.1'},
+      includeOpen: false,
+      failOnError: false,
+      fetchReviewers: false,
+      fetchReleaseInformation: false,
+      fetchReviews: false,
+      mode: 'PR',
+      configuration: customConfig,
+      repositoryUtils: giteaRepository
+    })
+
+  expect(buildReleaseDiff(new GiteaRepository('', 'https://git.example.com', '.'))).toStrictEqual(
+    `https://git.example.com/mikepenz/release-changelog-builder-action/compare/v2.8.0...v2.8.1`
+  )
+  expect(buildReleaseDiff(new GiteaRepository('', 'https://git.example.com/gitea/', '.'))).toStrictEqual(
+    `https://git.example.com/gitea/mikepenz/release-changelog-builder-action/compare/v2.8.0...v2.8.1`
+  )
+  expect(buildReleaseDiff(new GiteaRepository('', undefined, '.'))).toStrictEqual(
+    `https://gitea.com/mikepenz/release-changelog-builder-action/compare/v2.8.0...v2.8.1`
+  )
+})
+
+test.each([
+  [undefined, 'https://gitea.com'],
+  ['', 'https://gitea.com'],
+  ['https://git.example.com', 'https://git.example.com'],
+  ['https://git.example.com/', 'https://git.example.com'],
+  ['https://git.example.com///', 'https://git.example.com'],
+  ['https://git.example.com/gitea/', 'https://git.example.com/gitea'],
+  ['http://localhost:3000', 'http://localhost:3000']
+])('Gitea homeUrl for baseUrl %j is %s', (baseUrl, expected) => {
+  const repository = new GiteaRepository('', baseUrl, '.')
+  expect(repository.homeUrl).toStrictEqual(expected)
+  expect(repository.defaultUrl).toStrictEqual('https://gitea.com')
+})
+
+test('Release Diff for gitea with a custom instance and ref names', async () => {
+  const customConfig = Object.assign({}, DefaultConfiguration)
+  customConfig.template = '#{{RELEASE_DIFF}}'
+
+  const resultChangelog = buildChangelogTest(customConfig, pullRequestsWithLabels, new GiteaRepository('', 'http://localhost:3000/', '.'))
+  expect(resultChangelog).toStrictEqual(`http://localhost:3000/mikepenz/test-repo/compare/1.0.0...2.0.0`)
+})
+
+test('Release Diff for github ignores the gitea instance url', async () => {
+  const customConfig = Object.assign({}, DefaultConfiguration)
+  customConfig.template = '#{{RELEASE_DIFF}}'
+
+  const resultChangelog = buildChangelogTest(customConfig, pullRequestsWithLabels, new GithubRepository('', 'https://github.example.com', '.'))
+  expect(resultChangelog).toStrictEqual(`https://github.example.com/mikepenz/test-repo/compare/1.0.0...2.0.0`)
+})
+
+test.each([
+  [undefined, 'https://github.com'],
+  ['', 'https://github.com'],
+  ['https://api.github.com', 'https://github.com'],
+  ['https://api.github.com/', 'https://github.com'],
+  ['https://api.octocorp.ghe.com', 'https://octocorp.ghe.com'],
+  ['https://github.example.com/api/v3', 'https://github.example.com'],
+  ['https://github.example.com/api/v3/', 'https://github.example.com'],
+  ['https://github.example.com/api', 'https://github.example.com'],
+  ['http://localhost:8080/api/v3', 'http://localhost:8080'],
+  ['https://github.example.com', 'https://github.example.com'],
+  ['https://myapi.example.com/api/v3', 'https://myapi.example.com']
+])('GitHub homeUrl for baseUrl %j is %s', (baseUrl, expected) => {
+  const repository = new GithubRepository('', baseUrl, '.')
+  expect(repository.homeUrl).toStrictEqual(expected)
+})
+
+test('Release Diff for GitHub Enterprise Server links to the web url instead of the api', async () => {
+  const customConfig = Object.assign({}, DefaultConfiguration)
+  customConfig.template = '#{{RELEASE_DIFF}}'
+
+  const resultChangelog = buildChangelogTest(
+    customConfig,
+    pullRequestsWithLabels,
+    new GithubRepository('', 'https://github.example.com/api/v3', '.')
+  )
+  expect(resultChangelog).toStrictEqual(`https://github.example.com/mikepenz/test-repo/compare/1.0.0...2.0.0`)
+})
+
+test.each([
+  ['https://github.example.com/web', 'https://github.example.com/web'],
+  ['https://github.example.com/web/', 'https://github.example.com/web'],
+  ['  https://github.example.com  ', 'https://github.example.com'],
+  ['', 'https://github.example.com'],
+  [undefined, 'https://github.example.com']
+])('GitHub explicit homeUrl %j takes precedence and is %s', (homeUrl, expected) => {
+  const repository = new GithubRepository('', 'https://github.example.com/api/v3', '.', homeUrl)
+  expect(repository.homeUrl).toStrictEqual(expected)
+})
+
+test('GitHub explicit homeUrl does not change the api url used for requests', () => {
+  const repository = new GithubRepository('', 'https://api.example.com/custom', '.', 'https://web.example.com')
+  expect(repository.homeUrl).toStrictEqual('https://web.example.com')
+  expect(repository['url']).toStrictEqual('https://api.example.com/custom')
+})
+
+test('Gitea explicit homeUrl takes precedence over the base url', () => {
+  expect(new GiteaRepository('', 'http://localhost:3000', '.', 'https://git.example.com/').homeUrl).toStrictEqual('https://git.example.com')
+  expect(new GiteaRepository('', 'http://localhost:3000', '.', '').homeUrl).toStrictEqual('http://localhost:3000')
+})
+
+test('Release Diff uses the explicit homeUrl', async () => {
+  const customConfig = Object.assign({}, DefaultConfiguration)
+  customConfig.template = '#{{RELEASE_DIFF}}'
+
+  const resultChangelog = buildChangelogTest(
+    customConfig,
+    pullRequestsWithLabels,
+    new GithubRepository('', 'https://proxy.example.com/github-api', '.', 'https://github.example.com')
+  )
+  expect(resultChangelog).toStrictEqual(`https://github.example.com/mikepenz/test-repo/compare/1.0.0...2.0.0`)
 })
 
 test('Use exclude labels to not include a PR within a category.', async () => {
